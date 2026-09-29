@@ -1,0 +1,44 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>My Uploaded Chats - E3 Group</title>
+    <style>
+        body { background-color: #0d0f18; color: #e2e8f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 30px; }
+        .header { display: flex; justify-content: space-between; align-items: center; background: #151929; padding: 20px 30px; border-radius: 12px; border: 1px solid #262d47; }
+        .header h1 { margin: 0; font-size: 20px; color: #fbbf24; }
+        a.back { background: #1e2538; color: #e2e8f0; padding: 8px 16px; text-decoration: none; font-weight: bold; border-radius: 6px; font-size: 13px; border: 1px solid #334155; }
+        a.back:hover { background: #252d4a; }
+        
+        .container { background: #151929; margin-top: 25px; padding: 25px; border-radius: 12px; border: 1px solid #262d47; }
+        h3 { margin-top: 0; color: #fbbf24; font-size: 14px; border-bottom: 1px solid #262d47; padding-bottom: 10px; }
+        ul { list-style: none; padding: 0; margin: 0; }
+        li { background: #1e2538; padding: 12px 15px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+        li a { color: #38bdf8; text-decoration: none; word-break: break-all; }
+        li a:hover { text-decoration: underline; }
+        span.time { font-size: 11px; color: #94a3b8; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Uploaded Chats for <%= fullName %> (Today)</h1>
+        <a class="back" href="/agent">← Back to Dashboard</a>
+    </div>
+
+    <div class="container">
+        <h3>YOUR SUBMITTED LINKS TODAY</h3>
+        <% if (myLinks.length === 0) { %>
+            <p style="color: #94a3b8; font-size: 13px;">You haven't submitted any chat links yet today.</p>
+        <% } else { %>
+            <ul>
+                <% myLinks.forEach((item, index) => { %>
+                    <li>
+                        <a href="<%= item.link %>" target="_blank"><%= item.link %></a>
+                        <span class="time"><%= item.created_at %></span>
+                    </li>
+                <% }) %>
+            </ul>
+        <% } %>
+    </div>
+</body>
+</html>

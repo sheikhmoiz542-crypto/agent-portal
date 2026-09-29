@@ -1,0 +1,189 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Agent Portal - <%= fullName %></title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen">
+    <nav class="bg-slate-800 border-b border-slate-700 px-6 py-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold text-indigo-400">Agent Portal - Welcome, <%= fullName %></h1>
+        <a href="/logout" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded text-sm font-semibold transition">Logout</a>
+    </nav>
+
+    <div class="max-w-6xl mx-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Left: Submit Link & Breaks -->
+        <div class="md:col-span-2 space-y-6">
+            <% if (success) { %>
+                <div class="bg-green-500/20 border border-green-500 text-green-300 p-3 rounded text-sm"><%= success %></div>
+            <% } %>
+            <% if (error) { %>
+                <div class="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded text-sm"><%= error %></div>
+            <% } %>
+
+            <!-- Submit Link Card -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 text-indigo-300">Submit Work Link</h2>
+                <form action="/submit-link/<%= username %>" method="POST" class="flex gap-3">
+                    <input type="url" name="link" placeholder="Paste your link here..." required class="flex-1 bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 px-6 py-2 rounded font-semibold transition">Submit</button>
+                </form>
+                <div class="mt-4 text-sm text-slate-400">Total Links Logged Today (Shift Reset at 12:00 PM): <span class="font-bold text-white text-lg"><%= userLinksCount %></span></div>
+            </div>
+
+            <!-- Break Slots Management with Live Timer -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 text-indigo-300">Break Slots (Total 60 Mins)</h2>
+                
+                <% if (breakStatus !== 'off') { %>
+                    <div class="mb-4 bg-emerald-500/10 border border-emerald-500/50 p-3 rounded-lg flex justify-between items-center">
+                        <span class="text-sm text-emerald-300 font-semibold uppercase">Active Break: <%= breakStatus %></span>
+                        <span id="countdown" class="text-lg font-bold text-emerald-400">Loading timer...</span>
+                    </div>
+                <% } %>
+
+                <div class="grid grid-cols-3 gap-4">
+                    <!-- Break 1: 30 mins -->
+                    <div class="bg-slate-900 p-4 rounded-lg border border-slate-700 text-center">
+                        <div class="font-bold text-slate-200 mb-1">Break 1</div>
+                        <div class="text-xs text-indigo-400 mb-1">30 Minutes</div>
+                        <div class="text-xs text-slate-400 mb-3">Remaining: <span class="text-white font-semibold"><%= b1Rem %>m</span></div>
+                        <% if (breakStatus === 'break1') { %>
+                            <form action="/toggle-break/<%= username %>" method="POST">
+                                <input type="hidden" name="status" value="off">
+                                <button type="submit" class="bg-red-600 hover:bg-red-500 px-3 py-1.5 rounded text-xs font-semibold w-full">End Break</button>
+                            </form>
+                        <% } else { %>
+                            <form action="/toggle-break/<%= username %>" method="POST">
+                                <input type="hidden" name="status" value="break1">
+                                <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded text-xs font-semibold w-full" <%= breakStatus !== 'off' || b1Rem <= 0 ? 'disabled' : '' %>>Start Break</button>
+                            </form>
+                        <% } %>
+                    </div>
+                    <!-- Break 2: 15 mins -->
+                    <div class="bg-slate-900 p-4 rounded-lg border border-slate-700 text-center">
+                        <div class="font-bold text-slate-200 mb-1">Break 2</div>
+                        <div class="text-xs text-indigo-400 mb-1">15 Minutes</div>
+                        <div class="text-xs text-slate-400 mb-3">Remaining: <span class="text-white font-semibold"><%= b2Rem %>m</span></div>
+                        <% if (breakStatus === 'break2') { %>
+                            <form action="/toggle-break/<%= username %>" method="POST">
+                                <input type="hidden" name="status" value="off">
+                                <button type="submit" class="bg-red-600 hover:bg-red-500 px-3 py-1.5 rounded text-xs font-semibold w-full">End Break</button>
+                            </form>
+                        <% } else { %>
+                            <form action="/toggle-break/<%= username %>" method="POST">
+                                <input type="hidden" name="status" value="break2">
+                                <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded text-xs font-semibold w-full" <%= breakStatus !== 'off' || b2Rem <= 0 ? 'disabled' : '' %>>Start Break</button>
+                            </form>
+                        <% } %>
+                    </div>
+                    <!-- Break 3: 15 mins -->
+                    <div class="bg-slate-900 p-4 rounded-lg border border-slate-700 text-center">
+                        <div class="font-bold text-slate-200 mb-1">Break 3</div>
+                        <div class="text-xs text-indigo-400 mb-1">15 Minutes</div>
+                        <div class="text-xs text-slate-400 mb-3">Remaining: <span class="text-white font-semibold"><%= b3Rem %>m</span></div>
+                        <% if (breakStatus === 'break3') { %>
+                            <form action="/toggle-break/<%= username %>" method="POST">
+                                <input type="hidden" name="status" value="off">
+                                <button type="submit" class="bg-red-600 hover:bg-red-500 px-3 py-1.5 rounded text-xs font-semibold w-full">End Break</button>
+                            </form>
+                        <% } else { %>
+                            <form action="/toggle-break/<%= username %>" method="POST">
+                                <input type="hidden" name="status" value="break3">
+                                <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded text-xs font-semibold w-full" <%= breakStatus !== 'off' || b3Rem <= 0 ? 'disabled' : '' %>>Start Break</button>
+                            </form>
+                        <% } %>
+                    </div>
+                </div>
+                <div class="mt-4 text-xs text-center text-slate-400">Current Status: <span class="uppercase font-semibold text-indigo-300"><%= breakStatus === 'off' ? 'Working' : breakStatus.toUpperCase() %></span></div>
+            </div>
+
+            <!-- Recent Links -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 text-indigo-300">Your Recent Links Today</h2>
+                <div class="space-y-2 max-h-40 overflow-y-auto">
+                    <% if (recentLinks.length === 0) { %>
+                        <p class="text-sm text-slate-500">No links submitted yet today.</p>
+                    <% } else { %>
+                        <% recentLinks.forEach(item => { %>
+                            <div class="bg-slate-900 p-2 rounded text-sm truncate border border-slate-750">
+                                <a href="<%= item.link %>" target="_blank" class="text-indigo-400 hover:underline"><%= item.link %></a>
+                            </div>
+                        <% }) %>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Leaderboard & Schedule -->
+        <div class="space-y-6">
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 text-indigo-300">Today's Leaderboard</h2>
+                <div class="space-y-3">
+                    <% if (leaderboard.length === 0) { %>
+                        <p class="text-sm text-slate-500">No entries yet.</p>
+                    <% } else { %>
+                        <% leaderboard.forEach((entry, index) => { %>
+                            <div class="flex justify-between items-center bg-slate-900 p-3 rounded border border-slate-750">
+                                <span class="text-sm font-medium"><%= index + 1 %>. <%= entry.full_name %></span>
+                                <span class="bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded text-xs font-bold"><%= entry.count %> links</span>
+                            </div>
+                        <% }) %>
+                    <% } %>
+                </div>
+            </div>
+
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-lg font-semibold text-indigo-300">Current Week Schedule</h2>
+                </div>
+                <div class="text-xs text-indigo-400 font-semibold mb-3 bg-slate-900 p-2 rounded border border-slate-750 text-center"><%= scheduleRange %></div>
+                <div class="space-y-2 text-xs">
+                    <% 
+                        const daysMap = [
+                            { key: 'mon', label: 'Monday' },
+                            { key: 'tue', label: 'Tuesday' },
+                            { key: 'wed', label: 'Wednesday' },
+                            { key: 'thu', label: 'Thursday' },
+                            { key: 'fri', label: 'Friday' },
+                            { key: 'sat', label: 'Saturday' },
+                            { key: 'sun', label: 'Sunday' }
+                        ];
+                    %>
+                    <% daysMap.forEach(d => { %>
+                        <div class="p-2.5 rounded flex justify-between items-center border <%= todayDayKey === d.key ? 'bg-indigo-600/20 border-indigo-500 text-white font-bold' : 'bg-slate-900 border-slate-750 text-slate-300' %>">
+                            <span><%= d.label %> <%= todayDayKey === d.key ? '(Today)' : '' %></span>
+                            <span class="<%= todayDayKey === d.key ? 'text-indigo-400' : 'text-slate-400' %>"><%= mySchedule[d.key] || 'OFF' %></span>
+                        </div>
+                    <% }) %>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <% if (breakStatus !== 'off' && breakStartTime) { %>
+    <script>
+        const startTime = parseInt("<%= breakStartTime %>");
+        const totalDurationMins = "<%= breakStatus %>" === 'break1' ? 30 : 15;
+        const totalDurationSecs = totalDurationMins * 60;
+
+        function updateTimer() {
+            const elapsedSecs = Math.floor((Date.now() - startTime) / 1000);
+            const remainingSecs = totalDurationSecs - elapsedSecs;
+
+            if (remainingSecs <= 0) {
+                document.getElementById('countdown').innerText = "Time Expired!";
+                return;
+            }
+
+            const mins = Math.floor(remainingSecs / 60);
+            const secs = remainingSecs % 60;
+            document.getElementById('countdown').innerText = `${mins}m ${secs < 10 ? '0' : ''}${secs}s remaining`;
+        }
+
+        updateTimer();
+        setInterval(updateTimer, 1000);
+    </script>
+    <% } %>
+</body>
+</html>

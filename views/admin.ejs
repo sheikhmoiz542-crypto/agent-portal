@@ -1,0 +1,158 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Manager Command Center - E3 Group</title>
+    <style>
+        body { background-color: #0d0f18; color: #e2e8f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 25px; }
+        .header { display: flex; justify-content: space-between; align-items: center; background: #151929; padding: 20px 30px; border-radius: 12px; border: 1px solid #262d47; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+        .header h1 { margin: 0; font-size: 20px; color: #fbbf24; font-weight: 700; letter-spacing: 1px; }
+        .header span { font-size: 11px; color: #94a3b8; letter-spacing: 1px; }
+        a.logout { background: #dc2626; color: #fff; padding: 9px 20px; text-decoration: none; font-weight: bold; border-radius: 6px; font-size: 13px; transition: 0.2s; }
+        a.logout:hover { background: #ef4444; }
+
+        .success-banner { background: #065f46; color: #34d399; padding: 12px 20px; border-radius: 8px; margin-top: 20px; font-size: 13px; font-weight: bold; border: 1px solid #059669; }
+
+        .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; }
+        .card { background: #151929; padding: 24px; border-radius: 12px; border: 1px solid #262d47; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+        .full-width { grid-column: span 2; }
+
+        h3 { margin-top: 0; color: #fbbf24; font-size: 13px; border-bottom: 1px solid #262d47; padding-bottom: 10px; letter-spacing: 1.2px; font-weight: 700; }
+
+        .stat-box { font-size: 32px; font-weight: bold; color: #10b981; margin: 10px 0 5px 0; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px; }
+        th { background: #1e2538; color: #fbbf24; padding: 10px; text-align: left; border-bottom: 1px solid #334155; }
+        td { padding: 10px; border-bottom: 1px solid #1e2538; color: #cbd5e1; }
+        tr:hover { background: #1a2033; }
+
+        input.sched-input { background: #0d0f18; border: 1px solid #262d47; color: #e2e8f0; padding: 6px 8px; border-radius: 4px; width: 85px; font-size: 11px; text-align: center; }
+        input.sched-input:focus { border-color: #fbbf24; outline: none; }
+        
+        button.save-btn { background: #d97706; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; transition: 0.2s; }
+        button.save-btn:hover { background: #b45309; }
+
+        .badge-on { background: #065f46; color: #34d399; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .badge-off { background: #334155; color: #94a3b8; padding: 3px 8px; border-radius: 4px; font-size: 11px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>MANAGER COMMAND CENTER</h1>
+            <span>REAL-TIME AGENT TRACKING & SCHEDULE MANAGEMENT</span>
+        </div>
+        <a class="logout" href="/logout">SIGNOUT</a>
+    </div>
+
+    <% if (success) { %>
+        <div class="success-banner">Schedule updated successfully! Changes are now live across the portal.</div>
+    <% } %>
+
+    <div class="grid-container">
+        <!-- TOTAL LINKS LOGGED -->
+        <div class="card">
+            <h3>TOTAL SHIFT ACTIVITY TODAY</h3>
+            <div class="stat-box"><%= totalLinks %> <span style="font-size: 13px; color: #94a3b8; font-weight: normal;">Total Links Logged</span></div>
+            <div style="font-size: 12px; color: #94a3b8; margin-top: 5px;">Real-time aggregate counter for today's chat submittals across the team.</div>
+        </div>
+
+        <!-- LIVE AGENT LEADERBOARD -->
+        <div class="card">
+            <h3>TOP PERFORMING AGENTS TODAY</h3>
+            <% if (leaderboard.length === 0) { %>
+                <div style="color: #94a3b8; font-size: 13px; text-align: center; margin-top: 20px;">No links submitted yet today.</div>
+            <% } else { %>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Rank & Agent Name</th>
+                            <th style="text-align: right;">Links Logged</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% leaderboard.forEach((agent, index) => { %>
+                            <tr>
+                                <td><b>#<%= index + 1 %></b> &nbsp; <%= agent.full_name %></td>
+                                <td style="text-align: right; color: #10b981; font-weight: bold;"><%= agent.count %></td>
+                            </tr>
+                        <% }) %>
+                    </tbody>
+                </table>
+            <% } %>
+        </div>
+
+        <!-- DETAILED AGENT TRACKING (STATUS & BREAKS) -->
+        <div class="card full-width">
+            <h3>LIVE AGENT TRACKING (STATUS & BREAKS)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Agent Name</th>
+                        <th>Current Break Status</th>
+                        <th>Break Time Remaining</th>
+                        <th style="text-align: right;">Links Today</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% allAgentsTracking.forEach(agent => { %>
+                        <tr>
+                            <td style="color: #fbbf24; font-weight: bold;"><%= agent.full_name %></td>
+                            <td>
+                                <% if (agent.break_status === 'on') { %>
+                                    <span class="badge-on">ON BREAK</span>
+                                <% } else { %>
+                                    <span class="badge-off">ACTIVE / WORKING</span>
+                                <% } %>
+                            </td>
+                            <td><%= Math.floor(agent.break_seconds_left / 60) %> mins remaining</td>
+                            <td style="text-align: right; font-weight: bold; color: #10b981;"><%= agent.link_count %></td>
+                        </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- TEAM SCHEDULE / NEXT WEEK ROSTER MANAGER -->
+        <div class="card full-width">
+            <h3>TEAM WEEKLY SCHEDULE & ROSTER MANAGER (EDIT & SAVE)</h3>
+            <div style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Modify timings (e.g., <code>17:00 - 02:00</code> or <code>OFF</code>) for any day and click <b>Save</b> to instantly update the roster for next week.</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Agent Name</th>
+                        <th>Mon</th>
+                        <th>Tue</th>
+                        <th>Wed</th>
+                        <th>Thu</th>
+                        <th>Fri</th>
+                        <th>Sat</th>
+                        <th>Sun</th>
+                        <th style="text-align: right;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% scheduleList.forEach(sched => { %>
+                        <tr>
+                            <form action="/admin/update-schedule" method="POST">
+                                <input type="hidden" name="id" value="<%= sched.id %>">
+                                <td style="color: #fbbf24; font-weight: bold; vertical-align: middle;"><%= sched.agent_name %></td>
+                                <td><input class="sched-input" type="text" name="mon" value="<%= sched.mon %>"></td>
+                                <td><input class="sched-input" type="text" name="tue" value="<%= sched.tue %>"></td>
+                                <td><input class="sched-input" type="text" name="wed" value="<%= sched.wed %>"></td>
+                                <td><input class="sched-input" type="text" name="thu" value="<%= sched.thu %>"></td>
+                                <td><input class="sched-input" type="text" name="fri" value="<%= sched.fri %>"></td>
+                                <td><input class="sched-input" type="text" name="sat" value="<%= sched.sat %>"></td>
+                                <td><input class="sched-input" type="text" name="sun" value="<%= sched.sun %>"></td>
+                                <td style="text-align: right; vertical-align: middle;">
+                                    <button class="save-btn" type="submit">Save</button>
+                                </td>
+                            </form>
+                        </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

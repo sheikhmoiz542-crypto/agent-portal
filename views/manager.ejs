@@ -1,0 +1,163 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Manager Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen">
+    <nav class="bg-slate-800 border-b border-slate-700 px-6 py-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold text-indigo-400">Manager Portal - Dashboard</h1>
+        <div class="flex gap-3">
+            <a href="/manager/preview-schedule" target="_blank" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-sm font-semibold transition">Preview Team Schedule</a>
+            <a href="/logout" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded text-sm font-semibold transition">Logout</a>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto p-6 space-y-6">
+        <% if (success) { %>
+            <div class="bg-green-500/20 border border-green-500 text-green-300 p-3 rounded text-sm"><%= success %></div>
+        <% } %>
+        <% if (error) { %>
+            <div class="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded text-sm"><%= error %></div>
+        <% } %>
+
+        <!-- Set Schedule Date Range Section -->
+        <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+            <h2 class="text-lg font-semibold mb-4 text-indigo-300">Set Active Schedule Date Range (For Slack/WhatsApp Previews)</h2>
+            <form action="/update-schedule-range" method="POST" class="flex gap-3">
+                <input type="text" name="schedule_range" value="<%= scheduleRange %>" placeholder="e.g. Mon 28 Sep 2026 - Sun 04 Oct 2026" required class="flex-1 bg-slate-900 border border-slate-750 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 px-6 py-2 rounded font-semibold transition">Update Range</button>
+            </form>
+        </div>
+
+        <!-- Filter & Stats Section -->
+        <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+            <h2 class="text-lg font-semibold mb-4 text-indigo-300">Filter Agent Stats by Date & Agent</h2>
+            <form action="/manager" method="GET" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Select Date</label>
+                    <input type="date" name="date" value="<%= selectedDate %>" class="w-full bg-slate-900 border border-slate-750 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Select Agent</label>
+                    <select name="agent" class="w-full bg-slate-900 border border-slate-750 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                        <option value="">All Agents</option>
+                        <% agents.forEach(agent => { %>
+                            <option value="<%= agent.username %>" <%= selectedAgent === agent.username ? 'selected' : '' %>><%= agent.full_name %></option>
+                        <% }) %>
+                    </select>
+                </div>
+                <div class="flex gap-2">
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded font-semibold transition">Filter</button>
+                    <a href="/manager" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-center font-semibold transition">Reset</a>
+                </div>
+            </form>
+        </div>
+
+        <!-- Weekly Schedule Management Section -->
+        <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+            <h2 class="text-lg font-semibold mb-4 text-indigo-300">Manage Weekly Schedule for Agents</h2>
+            <div class="space-y-4 max-h-96 overflow-y-auto">
+                <% agents.forEach(agent => { %>
+                    <form action="/update-agent-schedule" method="POST" class="bg-slate-900 p-4 rounded-lg border border-slate-750 space-y-3">
+                        <input type="hidden" name="username" value="<%= agent.username %>">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-indigo-400"><%= agent.full_name %> (<%= agent.username %>)</span>
+                            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-1.5 rounded text-xs font-semibold transition">Save Schedule</button>
+                        </div>
+                        <div class="grid grid-cols-2 md:grid-cols-7 gap-2 text-xs">
+                            <div>
+                                <label class="block text-slate-400 mb-1">Mon</label>
+                                <input type="text" name="mon" value="<%= agent.mon %>" class="w-full bg-slate-800 border border-slate-700 rounded p-1 text-center text-white">
+                            </div>
+                            <div>
+                                <label class="block text-slate-400 mb-1">Tue</label>
+                                <input type="text" name="tue" value="<%= agent.tue %>" class="w-full bg-slate-800 border border-slate-700 rounded p-1 text-center text-white">
+                            </div>
+                            <div>
+                                <label class="block text-slate-400 mb-1">Wed</label>
+                                <input type="text" name="wed" value="<%= agent.wed %>" class="w-full bg-slate-800 border border-slate-700 rounded p-1 text-center text-white">
+                            </div>
+                            <div>
+                                <label class="block text-slate-400 mb-1">Thu</label>
+                                <input type="text" name="thu" value="<%= agent.thu %>" class="w-full bg-slate-800 border border-slate-700 rounded p-1 text-center text-white">
+                            </div>
+                            <div>
+                                <label class="block text-slate-400 mb-1">Fri</label>
+                                <input type="text" name="fri" value="<%= agent.fri %>" class="w-full bg-slate-800 border border-slate-700 rounded p-1 text-center text-white">
+                            </div>
+                            <div>
+                                <label class="block text-slate-400 mb-1">Sat</label>
+                                <input type="text" name="sat" value="<%= agent.sat %>" class="w-full bg-slate-800 border border-slate-700 rounded p-1 text-center text-white">
+                            </div>
+                            <div>
+                                <label class="block text-slate-400 mb-1">Sun</label>
+                                <input type="text" name="sun" value="<%= agent.sun %>" class="w-full bg-slate-800 border border-slate-700 rounded p-1 text-center text-white">
+                            </div>
+                        </div>
+                    </form>
+                <% }) %>
+            </div>
+        </div>
+
+        <!-- Filtered Links Table -->
+        <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+            <h2 class="text-lg font-semibold mb-4 text-indigo-300">Submitted Links Result</h2>
+            <div class="overflow-x-auto max-h-60 overflow-y-auto">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead>
+                        <tr class="bg-slate-900 text-slate-400 border-b border-slate-700">
+                            <th class="p-3">Agent Name</th>
+                            <th class="p-3">Link</th>
+                            <th class="p-3">Date (Shift)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% if (links.length === 0) { %>
+                            <tr><td colspan="3" class="p-4 text-center text-slate-500">No records found for selected filter.</td></tr>
+                        <% } else { %>
+                            <% links.forEach(item => { %>
+                                <tr class="border-b border-slate-750 hover:bg-slate-750/50">
+                                    <td class="p-3 font-medium"><%= item.full_name %></td>
+                                    <td class="p-3"><a href="<%= item.link %>" target="_blank" class="text-indigo-400 hover:underline"><%= item.link %></a></td>
+                                    <td class="p-3 text-slate-400"><%= item.date %></td>
+                                </tr>
+                            <% }) %>
+                        <% } %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Daily Summary Stats by Agent -->
+        <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+            <h2 class="text-lg font-semibold mb-4 text-indigo-300">All Days & Agents Summary Stats</h2>
+            <div class="overflow-x-auto max-h-60 overflow-y-auto">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead>
+                        <tr class="bg-slate-900 text-slate-400 border-b border-slate-700">
+                            <th class="p-3">Date</th>
+                            <th class="p-3">Agent Name</th>
+                            <th class="p-3">Total Links</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% if (dailyStats.length === 0) { %>
+                            <tr><td colspan="3" class="p-4 text-center text-slate-500">No stats available.</td></tr>
+                        <% } else { %>
+                            <% dailyStats.forEach(stat => { %>
+                                <tr class="border-b border-slate-750 hover:bg-slate-750/50">
+                                    <td class="p-3 text-slate-300"><%= stat.date %></td>
+                                    <td class="p-3 font-medium"><%= stat.full_name %></td>
+                                    <td class="p-3 text-indigo-400 font-bold"><%= stat.total_links %></td>
+                                </tr>
+                            <% }) %>
+                        <% } %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

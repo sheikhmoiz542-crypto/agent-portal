@@ -1,0 +1,29 @@
+{
+  "name": "shift-desk",
+  "version": "1.0.0",
+  "description": "Break booking, weekly schedules and agent stats for a support team",
+  "scripts": {
+    "start": "node server.js",
+    "seed:demo": "node seed-demo.js",
+    "test": "node test.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.3",
+    "body-parser": "^2.3.0",
+    "cookie-parser": "^1.4.7",
+    "ejs": "^6.0.1",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "jsonwebtoken": "^9.0.3",
+    "sqlite3": "^6.0.1"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "server.js"
+}
