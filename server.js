@@ -5,7 +5,7 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
 const app = express();
-const PORT = 3000;
+
 
 const db = new sqlite3.Database('./database.db', (err) => {
     if (err) console.error('DB Error:', err.message);
@@ -322,6 +322,8 @@ app.post('/update-schedule-range', (req, res) => {
 });
 
 PORT = process.env.PORT || 3000;
+
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(Server is running on port \);
