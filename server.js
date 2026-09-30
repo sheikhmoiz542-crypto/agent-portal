@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const sqlite3 = require('sqlite3').verbose();
@@ -320,15 +320,6 @@ app.post('/update-schedule-range', (req, res) => {
         res.redirect('/manager?success=' + encodeURIComponent('Schedule date range successfully updated!'));
     });
 });
-
-
-
-
-
-
-
-
-const PORT = process.env.PORT || 3000;
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => {
