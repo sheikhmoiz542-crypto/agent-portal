@@ -321,10 +321,10 @@ app.post('/update-schedule-range', (req, res) => {
     });
 });
 
+
+const server =
+
 const PORT = process.env.PORT || 3000;
-const server = app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server is successfully running on port ${PORT}`);
-});
-server.on("error", (err) => {
-  console.error("Server error:", err);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server is running on port ${PORT}`);
 });
