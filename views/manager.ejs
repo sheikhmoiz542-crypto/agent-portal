@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -69,7 +69,13 @@
                 </div>
                 <div>
                     <label class="block text-sm text-slate-400 mb-1">Password</label>
-                    <input type="password" name="password" required minlength="4" placeholder="Min. 4 characters" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                    <div class="relative">
+                        <input type="password" name="password" required minlength="4" placeholder="Min. 4 characters" class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
+                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                        </button>
+                    </div>
                 </div>
                 <div>
                     <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-400 px-6 py-2 rounded font-semibold text-white transition">Add Agent</button>
@@ -84,15 +90,33 @@
             <form action="/change-password" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                 <div>
                     <label class="block text-sm text-slate-400 mb-1">Current Password</label>
-                    <input type="password" name="current_password" required class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                    <div class="relative">
+                        <input type="password" name="current_password" required class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
+                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                        </button>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm text-slate-400 mb-1">New Password</label>
-                    <input type="password" name="new_password" required minlength="4" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                    <div class="relative">
+                        <input type="password" name="new_password" required minlength="4" class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
+                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                        </button>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm text-slate-400 mb-1">Confirm New Password</label>
-                    <input type="password" name="confirm_password" required minlength="4" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                    <div class="relative">
+                        <input type="password" name="confirm_password" required minlength="4" class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
+                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                        </button>
+                    </div>
                 </div>
                 <div>
                     <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 px-6 py-2 rounded font-semibold transition">Change Password</button>
@@ -149,7 +173,13 @@
                     <div class="flex flex-wrap gap-2 items-end pt-3 border-t border-slate-800">
                         <form action="/reset-agent-password" method="POST" class="flex gap-2 items-end" onsubmit="return confirm('Reset password for <%= agent.full_name %>? The agent will need the new password to log in.');">
                             <input type="hidden" name="username" value="<%= agent.username %>">
-                            <input type="password" name="new_password" required minlength="4" placeholder="New password" class="bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
+                            <div class="relative">
+                                <input type="password" name="new_password" required minlength="4" placeholder="New password" class="bg-slate-800 border border-slate-700 rounded pl-2 pr-8 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
+                                <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-2 text-slate-500 hover:text-slate-200">
+                                    <svg class="eye-on w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                    <svg class="eye-off w-3.5 h-3.5 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                                </button>
+                            </div>
                             <button type="submit" class="bg-amber-600 hover:bg-amber-500 px-3 py-1.5 rounded text-xs font-semibold transition">Reset Password</button>
                         </form>
                         <form action="/delete-agent" method="POST" onsubmit="return confirm('Delete agent <%= agent.full_name %> (<%= agent.username %>)? Their login will stop working immediately. This cannot be undone.');">
@@ -182,7 +212,7 @@
                                 <tr class="border-b border-slate-750 hover:bg-slate-750/50">
                                     <td class="p-3 font-medium"><%= item.full_name %></td>
                                     <td class="p-3"><a href="<%= item.link %>" target="_blank" class="text-indigo-400 hover:underline"><%= item.link %></a></td>
-                                    <td class="p-3 text-slate-400"><%= item.date %></td>
+                                    <td class="p-3 text-indigo-400 font-bold"><%= stat.total_links %></td>
                                 </tr>
                             <% }) %>
                         <% } %>
@@ -220,5 +250,25 @@
             </div>
         </div>
     </div>
+
+    <script>
+        // Show/hide password toggle for the eye icons
+        function togglePw(btn) {
+            const wrap = btn.closest('.relative');
+            const input = wrap ? wrap.querySelector('input') : null;
+            if (!input) return;
+            const eyeOn = btn.querySelector('.eye-on');
+            const eyeOff = btn.querySelector('.eye-off');
+            if (input.type === 'password') {
+                input.type = 'text';
+                if (eyeOn) eyeOn.classList.add('hidden');
+                if (eyeOff) eyeOff.classList.remove('hidden');
+            } else {
+                input.type = 'password';
+                if (eyeOn) eyeOn.classList.remove('hidden');
+                if (eyeOff) eyeOff.classList.add('hidden');
+            }
+        }
+    </script>
 </body>
 </html>
