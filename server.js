@@ -324,35 +324,71 @@ app.post('/update-schedule-range', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 
-// --- Dynamic Agent Management & Login Routes ---
-if (!global.agentsList) {
-    global.agentsList = [
-        { name: 'Default Agent', email: 'agent@coreedgesolution.com', password: '123', role: 'agent' }
-    ];
+// --- Add New Agent (manager only) ---
+// New agents are stored in the SQLite users table (not in-memory) so they
+// survive restarts/redeploys. The /manager schedule page and /login route
+// already read from this table, so new agents appear automatically.
+
+let emailColumnEnsured = false;
+function ensureEmailColumn(cb) {
+    if (emailColumnEnsured) return cb();
+    db.run(`ALTER TABLE users ADD COLUMN email TEXT`, () => {
+        // ignore error when the column already exists
+        emailColumnEnsured = true;
+        cb();
+    });
 }
 
-// Admin: Naya agent add karne ka route
-app.post('/admin/add-agent', (req, res) => {
-    const { name, email, password } = req.body;
-    if (name && email && password) {
-        global.agentsList.push({ name, email, password, role: 'agent' });
-    }
-    res.redirect('/admin/schedule');
-});
+function buildUniqueUsername(base, attempt, cb, onError) {
+    const candidate = attempt === 0 ? base : base + attempt;
+    db.get(`SELECT id FROM users WHERE username = ?`, [candidate], (err, row) => {
+        if (err) return onError(err);
+        if (row) return buildUniqueUsername(base, attempt + 1, cb, onError);
+        cb(candidate);
+    });
+}
 
-// Agent Login authentication route
-app.post('/login-action', (req, res) => {
-    const { email, password } = req.body;
-    const found = global.agentsList.find(a => a.email === email && a.password === password);
-    if (found) {
-        if (found.role === 'admin') {
-            res.redirect('/admin/portal');
-        } else {
-            res.redirect('/agent/dashboard');
-        }
-    } else {
-        res.redirect('/login?error=InvalidCredentials');
+app.post('/add-agent', (req, res) => {
+    const loggedUser = req.cookies.auth_user;
+    const loggedRole = req.cookies.auth_role;
+
+    if (!loggedUser || loggedRole !== 'manager') {
+        return res.redirect('/login');
     }
+
+    const name = (req.body.name || '').trim();
+    const email = (req.body.email || '').trim().toLowerCase();
+    const password = req.body.password || '';
+
+    if (!name || !email || !password) {
+        return res.redirect('/manager?error=' + encodeURIComponent('Please fill in name, email and password.'));
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.redirect('/manager?error=' + encodeURIComponent('Please enter a valid email address.'));
+    }
+    if (password.length < 4) {
+        return res.redirect('/manager?error=' + encodeURIComponent('Password must be at least 4 characters long.'));
+    }
+
+    ensureEmailColumn(() => {
+        let base = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!base) base = 'agent';
+        if (base.length > 20) base = base.slice(0, 20);
+
+        buildUniqueUsername(base, 0, (username) => {
+            db.run(`INSERT INTO users (username, password, full_name, email, role, mon, tue, wed, thu, fri, sat, sun)
+                    VALUES (?, ?, ?, ?, 'agent', 'OFF', 'OFF', 'OFF', 'OFF', 'OFF', 'OFF', 'OFF')`,
+                [username, password, name, email],
+                (err) => {
+                    if (err) {
+                        return res.redirect('/manager?error=' + encodeURIComponent('Could not add agent. Please try again.'));
+                    }
+                    res.redirect('/manager?success=' + encodeURIComponent(`Agent "${name}" added! Login username: ${username}`));
+                });
+        }, () => {
+            res.redirect('/manager?error=' + encodeURIComponent('Could not add agent. Please try again.'));
+        });
+    });
 });
 
 app.listen(process.env.PORT || 3000, "0.0.0.0", () => {
