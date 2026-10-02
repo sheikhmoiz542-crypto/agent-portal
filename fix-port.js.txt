@@ -1,0 +1,14 @@
+const fs = require('fs');
+let code = fs.readFileSync('server.js', 'utf8');
+
+// Purane saare listen blocks hata do
+code = code.replace(/const\s+PORT\s*=[^;]+;/g, '');
+code = code.replace(/let\s+PORT\s*=[^;]+;/g, '');
+code = code.replace(/var\s+PORT\s*=[^;]+;/g, '');
+code = code.replace(/app\.listen[\s\S]*$/, '');
+
+// Bilkul saaf suthra code aakhir mein jorr do
+code += '\nconst PORT = process.env.PORT || 3000;\napp.listen(PORT, () => {\n  console.log("Server is running on port " + PORT);\n});\n';
+
+fs.writeFileSync('server.js', code);
+console.log('Port successfully fixed!');
