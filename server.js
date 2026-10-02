@@ -57,18 +57,15 @@ db.serialize(() => {
             }
         });
 
+        // Seed defaults ONLY for users that don't exist yet. Never overwrite
+        // existing rows here — schedules edited via the dashboard must persist
+        // across restarts/redeploys.
         agentsData.forEach(agent => {
             db.get(`SELECT * FROM users WHERE username = ?`, [agent.username], (err, row) => {
                 if (!row) {
                     db.run(`INSERT INTO users (username, password, full_name, role, mon, tue, wed, thu, fri, sat, sun) 
                         VALUES (?, ?, ?, 'agent', ?, ?, ?, ?, ?, ?, ?)`,
                         [agent.username, bcrypt.hashSync(agent.password, 10), agent.name, agent.schedule[0], agent.schedule[1], agent.schedule[2], agent.schedule[3], agent.schedule[4], agent.schedule[5], agent.schedule[6]]);
-                } else {
-                    // NOTE: password is intentionally NOT overwritten here anymore.
-                    // Existing passwords migrate to bcrypt hashes on next login.
-                    // Only the weekly schedule is synced from the seed data.
-                    db.run(`UPDATE users SET mon = ?, tue = ?, wed = ?, thu = ?, fri = ?, sat = ?, sun = ? WHERE username = ?`,
-                        [agent.schedule[0], agent.schedule[1], agent.schedule[2], agent.schedule[3], agent.schedule[4], agent.schedule[5], agent.schedule[6], agent.username]);
                 }
             });
         });
@@ -282,7 +279,7 @@ app.get('/manager', (req, res) => {
     query += ` ORDER BY id DESC`;
     
     db.all(query, params, (err, filteredLinks) => {
-        db.all(`SELECT * FROM users WHERE role = 'agent'`, (err, agents) => {
+        db.all(`SELECT * FROM users WHERE role = 'agent' ORDER BY full_name`, (err, agents) => {
             db.all(`SELECT username, full_name, date, COUNT(*) as total_links FROM links GROUP BY username, date ORDER BY date DESC, total_links DESC`, (err, dailyStats) => {
                 db.get(`SELECT value FROM meta WHERE key = 'schedule_range'`, (err, metaRow) => {
                     res.render('manager', {
@@ -309,7 +306,7 @@ app.get('/manager/preview-schedule', (req, res) => {
         return res.redirect('/login');
     }
 
-    db.all(`SELECT * FROM users WHERE role = 'agent'`, (err, agents) => {
+    db.all(`SELECT * FROM users WHERE role = 'agent' ORDER BY full_name`, (err, agents) => {
         db.get(`SELECT value FROM meta WHERE key = 'schedule_range'`, (err, metaRow) => {
             res.render('schedule-preview', { 
                 agents: agents || [],
@@ -406,11 +403,16 @@ app.post('/add-agent', (req, res) => {
     }
 
     ensureEmailColumn(() => {
-        let base = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (!base) base = 'agent';
-        if (base.length > 20) base = base.slice(0, 20);
+        db.get(`SELECT id FROM users WHERE email = ?`, [email], (err, existing) => {
+            if (existing) {
+                return res.redirect('/manager?error=' + encodeURIComponent('This email is already registered to another agent.'));
+            }
 
-        buildUniqueUsername(base, 0, (username) => {
+            let base = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (!base) base = 'agent';
+            if (base.length > 20) base = base.slice(0, 20);
+
+            buildUniqueUsername(base, 0, (username) => {
             const hash = bcrypt.hashSync(password, 10);
             db.run(`INSERT INTO users (username, password, full_name, email, role, mon, tue, wed, thu, fri, sat, sun)
                     VALUES (?, ?, ?, ?, 'agent', 'OFF', 'OFF', 'OFF', 'OFF', 'OFF', 'OFF', 'OFF')`,
@@ -423,6 +425,7 @@ app.post('/add-agent', (req, res) => {
                 });
         }, () => {
             res.redirect('/manager?error=' + encodeURIComponent('Could not add agent. Please try again.'));
+        });
         });
     });
 });
