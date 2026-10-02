@@ -427,6 +427,118 @@ app.post('/add-agent', (req, res) => {
     });
 });
 
+// --- Delete Agent (manager only) ---
+// The agent's login and schedule are removed immediately. Their previously
+// submitted links are kept as historical records.
+app.post('/delete-agent', (req, res) => {
+    const loggedUser = req.cookies.auth_user;
+    const loggedRole = req.cookies.auth_role;
+
+    if (!loggedUser || loggedRole !== 'manager') {
+        return res.redirect('/login');
+    }
+
+    const username = (req.body.username || '').trim();
+    if (!username) {
+        return res.redirect('/manager?error=' + encodeURIComponent('No agent specified.'));
+    }
+
+    db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, target) => {
+        if (err || !target) {
+            return res.redirect('/manager?error=' + encodeURIComponent('Agent not found.'));
+        }
+        if (target.role === 'manager') {
+            return res.redirect('/manager?error=' + encodeURIComponent('Manager accounts cannot be deleted.'));
+        }
+        db.run(`DELETE FROM users WHERE username = ?`, [username], (err) => {
+            if (err) {
+                return res.redirect('/manager?error=' + encodeURIComponent('Could not delete agent.'));
+            }
+            res.redirect('/manager?success=' + encodeURIComponent(`Agent "${target.full_name}" (${username}) deleted.`));
+        });
+    });
+});
+
+// --- Reset Agent Password (manager only) ---
+// For when an agent forgets their password: the manager sets a new one and
+// shares it with the agent (e.g. via WhatsApp/Slack).
+app.post('/reset-agent-password', (req, res) => {
+    const loggedUser = req.cookies.auth_user;
+    const loggedRole = req.cookies.auth_role;
+
+    if (!loggedUser || loggedRole !== 'manager') {
+        return res.redirect('/login');
+    }
+
+    const username = (req.body.username || '').trim();
+    const newPassword = req.body.new_password || '';
+
+    if (!username || !newPassword) {
+        return res.redirect('/manager?error=' + encodeURIComponent('Username and new password are required.'));
+    }
+    if (newPassword.length < 4) {
+        return res.redirect('/manager?error=' + encodeURIComponent('Password must be at least 4 characters long.'));
+    }
+
+    db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, target) => {
+        if (err || !target) {
+            return res.redirect('/manager?error=' + encodeURIComponent('Agent not found.'));
+        }
+        if (target.role === 'manager') {
+            return res.redirect('/manager?error=' + encodeURIComponent('Use Change Password below for manager accounts.'));
+        }
+        db.run(`UPDATE users SET password = ? WHERE username = ?`, [bcrypt.hashSync(newPassword, 10), username], (err) => {
+            if (err) {
+                return res.redirect('/manager?error=' + encodeURIComponent('Could not reset password.'));
+            }
+            res.redirect('/manager?success=' + encodeURIComponent(`Password reset for "${target.full_name}". Share the new password with them.`));
+        });
+    });
+});
+
+// --- Change Password (self-service, any logged-in user) ---
+app.post('/change-password', (req, res) => {
+    const loggedUser = req.cookies.auth_user;
+    const loggedRole = req.cookies.auth_role;
+
+    if (!loggedUser) {
+        return res.redirect('/login');
+    }
+    const back = loggedRole === 'manager' ? '/manager' : `/agent/${loggedUser}`;
+
+    const currentPassword = req.body.current_password || '';
+    const newPassword = req.body.new_password || '';
+    const confirmPassword = req.body.confirm_password || '';
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+        return res.redirect(back + '?error=' + encodeURIComponent('Please fill in all password fields.'));
+    }
+    if (newPassword.length < 4) {
+        return res.redirect(back + '?error=' + encodeURIComponent('New password must be at least 4 characters long.'));
+    }
+    if (newPassword !== confirmPassword) {
+        return res.redirect(back + '?error=' + encodeURIComponent('New passwords do not match.'));
+    }
+
+    db.get(`SELECT * FROM users WHERE username = ?`, [loggedUser], (err, user) => {
+        if (err || !user) {
+            return res.redirect('/login');
+        }
+        const stored = user.password || '';
+        const isHash = /^\$2[aby]\$/.test(stored);
+        const ok = isHash ? bcrypt.compareSync(currentPassword, stored) : currentPassword === stored;
+        if (!ok) {
+            return res.redirect(back + '?error=' + encodeURIComponent('Current password is incorrect.'));
+        }
+        db.run(`UPDATE users SET password = ? WHERE username = ?`, [bcrypt.hashSync(newPassword, 10), loggedUser], (err) => {
+            if (err) {
+                return res.redirect(back + '?error=' + encodeURIComponent('Could not change password.'));
+            }
+            res.redirect(back + '?success=' + encodeURIComponent('Password changed successfully.'));
+        });
+    });
+});
+
 app.listen(process.env.PORT || 3000, "0.0.0.0", () => {
   console.log("Server is running smoothly on port " + (process.env.PORT || 3000));
 });
