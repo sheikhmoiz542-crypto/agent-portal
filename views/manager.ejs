@@ -55,6 +55,29 @@
             </form>
         </div>
 
+        <!-- Add New Agent Section -->
+        <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+            <h2 class="text-lg font-semibold mb-4 text-indigo-300">Add New Agent</h2>
+            <form action="/add-agent" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Agent Name</label>
+                    <input type="text" name="name" required placeholder="e.g. Ali Khan" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Email Address</label>
+                    <input type="email" name="email" required placeholder="e.g. ali@company.com" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Password</label>
+                    <input type="password" name="password" required minlength="4" placeholder="Min. 4 characters" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-400 px-6 py-2 rounded font-semibold text-white transition">Add Agent</button>
+                </div>
+            </form>
+            <p class="text-xs text-slate-500 mt-3">The agent's login username is auto-generated from the email address (e.g. ali.khan@company.com → alikhan). New agents start with all days OFF — set their weekly schedule below.</p>
+        </div>
+
         <!-- Weekly Schedule Management Section -->
         <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
             <h2 class="text-lg font-semibold mb-4 text-indigo-300">Manage Weekly Schedule for Agents</h2>
