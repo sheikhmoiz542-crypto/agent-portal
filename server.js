@@ -3,13 +3,31 @@ const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const fs = require('fs');
+const bcrypt = require('bcryptjs');
 
 const app = express();
 
+// Persistent database: use the Railway volume at DATA_DIR when available
+// (survives redeploys); otherwise fall back to the bundled database file.
+let DB_PATH = path.join(__dirname, 'database.db');
+try {
+    const dataDir = process.env.DATA_DIR;
+    if (dataDir && fs.existsSync(dataDir)) {
+        const volPath = path.join(dataDir, 'database.db');
+        if (!fs.existsSync(volPath)) {
+            fs.copyFileSync(path.join(__dirname, 'database.db'), volPath);
+            console.log('Seeded persistent database from bundled copy.');
+        }
+        DB_PATH = volPath;
+    }
+} catch (e) {
+    console.error('Persistent DB setup failed, using bundled DB:', e.message);
+}
 
-const db = new sqlite3.Database('./database.db', (err) => {
+const db = new sqlite3.Database(DB_PATH, (err) => {
     if (err) console.error('DB Error:', err.message);
-    else console.log('Connected to SQLite database.');
+    else console.log('Connected to SQLite database at ' + DB_PATH);
 });
 
 // Agents Data with Unique Passwords
@@ -34,7 +52,8 @@ db.serialize(() => {
     )`, () => {
         db.get(`SELECT * FROM users WHERE username = 'manager'`, (err, row) => {
             if (!row) {
-                db.run(`INSERT INTO users (username, password, full_name, role) VALUES ('manager', 'Ft37kFOT', 'System Manager', 'manager')`);
+                db.run(`INSERT INTO users (username, password, full_name, role) VALUES ('manager', ?, 'System Manager', 'manager')`,
+                    [bcrypt.hashSync('Ft37kFOT', 10)]);
             }
         });
 
@@ -43,10 +62,13 @@ db.serialize(() => {
                 if (!row) {
                     db.run(`INSERT INTO users (username, password, full_name, role, mon, tue, wed, thu, fri, sat, sun) 
                         VALUES (?, ?, ?, 'agent', ?, ?, ?, ?, ?, ?, ?)`,
-                        [agent.username, agent.password, agent.name, agent.schedule[0], agent.schedule[1], agent.schedule[2], agent.schedule[3], agent.schedule[4], agent.schedule[5], agent.schedule[6]]);
+                        [agent.username, bcrypt.hashSync(agent.password, 10), agent.name, agent.schedule[0], agent.schedule[1], agent.schedule[2], agent.schedule[3], agent.schedule[4], agent.schedule[5], agent.schedule[6]]);
                 } else {
-                    db.run(`UPDATE users SET password = ?, mon = ?, tue = ?, wed = ?, thu = ?, fri = ?, sat = ?, sun = ? WHERE username = ?`,
-                        [agent.password, agent.schedule[0], agent.schedule[1], agent.schedule[2], agent.schedule[3], agent.schedule[4], agent.schedule[5], agent.schedule[6], agent.username]);
+                    // NOTE: password is intentionally NOT overwritten here anymore.
+                    // Existing passwords migrate to bcrypt hashes on next login.
+                    // Only the weekly schedule is synced from the seed data.
+                    db.run(`UPDATE users SET mon = ?, tue = ?, wed = ?, thu = ?, fri = ?, sat = ?, sun = ? WHERE username = ?`,
+                        [agent.schedule[0], agent.schedule[1], agent.schedule[2], agent.schedule[3], agent.schedule[4], agent.schedule[5], agent.schedule[6], agent.username]);
                 }
             });
         });
@@ -94,18 +116,31 @@ app.get('/login', (req, res) => {
 
 app.post('/login', (req, res) => {
     const { username, password } = req.body;
-    db.get(`SELECT * FROM users WHERE username = ? AND password = ?`, [username, password], (err, user) => {
-        if (user) {
-            res.cookie('auth_user', user.username, { httpOnly: true });
-            res.cookie('auth_role', user.role, { httpOnly: true });
-            
-            if (user.role === 'manager') {
-                res.redirect('/manager');
-            } else {
-                res.redirect(`/agent/${user.username}`);
-            }
+    db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, user) => {
+        if (err || !user) {
+            return res.render('login', { error: 'Invalid username or password' });
+        }
+
+        const stored = user.password || '';
+        const isHash = /^\$2[aby]\$/.test(stored);
+        const ok = isHash ? bcrypt.compareSync(password, stored) : password === stored;
+
+        if (!ok) {
+            return res.render('login', { error: 'Invalid username or password' });
+        }
+
+        if (!isHash) {
+            // Transparent migration: upgrade this plaintext password to a bcrypt hash
+            db.run(`UPDATE users SET password = ? WHERE id = ?`, [bcrypt.hashSync(password, 10), user.id]);
+        }
+
+        res.cookie('auth_user', user.username, { httpOnly: true });
+        res.cookie('auth_role', user.role, { httpOnly: true });
+
+        if (user.role === 'manager') {
+            res.redirect('/manager');
         } else {
-            res.render('login', { error: 'Invalid username or password' });
+            res.redirect(`/agent/${user.username}`);
         }
     });
 });
@@ -376,9 +411,10 @@ app.post('/add-agent', (req, res) => {
         if (base.length > 20) base = base.slice(0, 20);
 
         buildUniqueUsername(base, 0, (username) => {
+            const hash = bcrypt.hashSync(password, 10);
             db.run(`INSERT INTO users (username, password, full_name, email, role, mon, tue, wed, thu, fri, sat, sun)
                     VALUES (?, ?, ?, ?, 'agent', 'OFF', 'OFF', 'OFF', 'OFF', 'OFF', 'OFF', 'OFF')`,
-                [username, password, name, email],
+                [username, hash, name, email],
                 (err) => {
                     if (err) {
                         return res.redirect('/manager?error=' + encodeURIComponent('Could not add agent. Please try again.'));
