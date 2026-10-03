@@ -336,7 +336,7 @@ app.get('/manager', requireManager, (req, res) => {
         db.all(`SELECT * FROM users WHERE role = 'agent' ORDER BY full_name`, (err, agents) => {
             db.all(`SELECT username, full_name, date, COUNT(*) as total_links FROM links GROUP BY username, date ORDER BY date DESC, total_links DESC`, (err, dailyStats) => {
                 db.get(`SELECT value FROM meta WHERE key = 'schedule_range'`, (err, metaRow) => {
-                    db.all(`SELECT username, full_name, email FROM users WHERE role IN ('owner', 'manager') ORDER BY full_name`, (err, managers) => {
+                    db.all(`SELECT username, full_name, email, role FROM users WHERE role IN ('owner', 'manager') ORDER BY full_name`, (err, managers) => {
                         res.render('manager', {
                             links: filteredLinks || [],
                             agents: agents || [],
