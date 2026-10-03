@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -7,8 +7,14 @@
 </head>
 <body class="bg-slate-900 text-white min-h-screen">
     <nav class="bg-slate-800 border-b border-slate-700 px-6 py-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold text-indigo-400">Agent Portal - Welcome, <%= fullName %></h1>
-        <a href="/logout" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded text-sm font-semibold transition">Logout</a>
+        <div>
+            <h1 class="text-xl font-bold text-indigo-400">Agent Portal</h1>
+            <p class="text-xs text-slate-500 mt-0.5">Welcome, <%= fullName %></p>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="openPwModal()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition">Change Password</button>
+            <a href="/logout" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded text-sm font-semibold transition">Logout</a>
+        </div>
     </nav>
 
     <div class="max-w-6xl mx-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -31,71 +37,66 @@
                 <div class="mt-4 text-sm text-slate-400">Total Links Logged Today (Shift Reset at 12:00 PM): <span class="font-bold text-white text-lg"><%= userLinksCount %></span></div>
             </div>
 
-            <!-- Break Slots Management with Live Timer -->
+            <!-- Break Management: pick one break at a time -->
             <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
-                <h2 class="text-lg font-semibold mb-4 text-indigo-300">Break Slots (Total 60 Mins)</h2>
-                
-                <% if (breakStatus !== 'off') { %>
-                    <div class="mb-4 bg-emerald-500/10 border border-emerald-500/50 p-3 rounded-lg flex justify-between items-center">
-                        <span class="text-sm text-emerald-300 font-semibold uppercase">Active Break: <%= breakStatus %></span>
-                        <span id="countdown" class="text-lg font-bold text-emerald-400">Loading timer...</span>
-                    </div>
-                <% } %>
-
-                <div class="grid grid-cols-3 gap-4">
-                    <!-- Break 1: 30 mins -->
-                    <div class="bg-slate-900 p-4 rounded-lg border border-slate-700 text-center">
-                        <div class="font-bold text-slate-200 mb-1">Break 1</div>
-                        <div class="text-xs text-indigo-400 mb-1">30 Minutes</div>
-                        <div class="text-xs text-slate-400 mb-3">Remaining: <span class="text-white font-semibold"><%= b1Rem %>m</span></div>
-                        <% if (breakStatus === 'break1') { %>
-                            <form action="/toggle-break/<%= username %>" method="POST">
-                                <input type="hidden" name="status" value="off">
-                                <button type="submit" class="bg-red-600 hover:bg-red-500 px-3 py-1.5 rounded text-xs font-semibold w-full">End Break</button>
-                            </form>
-                        <% } else { %>
-                            <form action="/toggle-break/<%= username %>" method="POST">
-                                <input type="hidden" name="status" value="break1">
-                                <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded text-xs font-semibold w-full" <%= breakStatus !== 'off' || b1Rem <= 0 ? 'disabled' : '' %>>Start Break</button>
-                            </form>
-                        <% } %>
-                    </div>
-                    <!-- Break 2: 15 mins -->
-                    <div class="bg-slate-900 p-4 rounded-lg border border-slate-700 text-center">
-                        <div class="font-bold text-slate-200 mb-1">Break 2</div>
-                        <div class="text-xs text-indigo-400 mb-1">15 Minutes</div>
-                        <div class="text-xs text-slate-400 mb-3">Remaining: <span class="text-white font-semibold"><%= b2Rem %>m</span></div>
-                        <% if (breakStatus === 'break2') { %>
-                            <form action="/toggle-break/<%= username %>" method="POST">
-                                <input type="hidden" name="status" value="off">
-                                <button type="submit" class="bg-red-600 hover:bg-red-500 px-3 py-1.5 rounded text-xs font-semibold w-full">End Break</button>
-                            </form>
-                        <% } else { %>
-                            <form action="/toggle-break/<%= username %>" method="POST">
-                                <input type="hidden" name="status" value="break2">
-                                <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded text-xs font-semibold w-full" <%= breakStatus !== 'off' || b2Rem <= 0 ? 'disabled' : '' %>>Start Break</button>
-                            </form>
-                        <% } %>
-                    </div>
-                    <!-- Break 3: 15 mins -->
-                    <div class="bg-slate-900 p-4 rounded-lg border border-slate-700 text-center">
-                        <div class="font-bold text-slate-200 mb-1">Break 3</div>
-                        <div class="text-xs text-indigo-400 mb-1">15 Minutes</div>
-                        <div class="text-xs text-slate-400 mb-3">Remaining: <span class="text-white font-semibold"><%= b3Rem %>m</span></div>
-                        <% if (breakStatus === 'break3') { %>
-                            <form action="/toggle-break/<%= username %>" method="POST">
-                                <input type="hidden" name="status" value="off">
-                                <button type="submit" class="bg-red-600 hover:bg-red-500 px-3 py-1.5 rounded text-xs font-semibold w-full">End Break</button>
-                            </form>
-                        <% } else { %>
-                            <form action="/toggle-break/<%= username %>" method="POST">
-                                <input type="hidden" name="status" value="break3">
-                                <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded text-xs font-semibold w-full" <%= breakStatus !== 'off' || b3Rem <= 0 ? 'disabled' : '' %>>Start Break</button>
-                            </form>
-                        <% } %>
-                    </div>
+                <div class="flex items-center justify-between mb-1">
+                    <h2 class="text-lg font-semibold text-indigo-300">Take a Break</h2>
+                    <span class="text-xs text-slate-500">60 mins total / day</span>
                 </div>
-                <div class="mt-4 text-xs text-center text-slate-400">Current Status: <span class="uppercase font-semibold text-indigo-300"><%= breakStatus === 'off' ? 'Working' : breakStatus.toUpperCase() %></span></div>
+                <p class="text-xs text-slate-500 mb-4">Choose one break, then start it. The timer keeps running even if you close this page.</p>
+
+                <% if (breakStatus !== 'off') { %>
+                    <div class="bg-emerald-500/10 border border-emerald-500/50 p-4 rounded-lg">
+                        <div class="flex justify-between items-center mb-3">
+                            <div>
+                                <div class="text-[11px] text-emerald-300/70 uppercase tracking-wider">On break now</div>
+                                <div class="font-bold text-emerald-300"><%= breakStatus === 'break1' ? 'Break 1 · 30 min' : (breakStatus === 'break2' ? 'Break 2 · 15 min' : 'Break 3 · 15 min') %></div>
+                            </div>
+                            <div id="countdown" class="text-2xl font-bold text-emerald-400 tabular-nums">--:--</div>
+                        </div>
+                        <form action="/toggle-break/<%= username %>" method="POST">
+                            <input type="hidden" name="status" value="off">
+                            <button type="submit" class="w-full bg-red-600 hover:bg-red-500 py-2 rounded font-semibold transition text-sm">End Break</button>
+                        </form>
+                    </div>
+                <% } else { %>
+                    <form action="/toggle-break/<%= username %>" method="POST" onsubmit="return pickBreak()">
+                        <input type="hidden" name="status" id="breakChoice" value="">
+                        <div class="grid grid-cols-3 gap-3 mb-4">
+                            <% const breakOpts = [
+                                { id: 'break1', label: 'Break 1', mins: 30, rem: b1Rem },
+                                { id: 'break2', label: 'Break 2', mins: 15, rem: b2Rem },
+                                { id: 'break3', label: 'Break 3', mins: 15, rem: b3Rem }
+                            ]; %>
+                            <% breakOpts.forEach(b => { %>
+                                <button type="button" onclick="selectBreak('<%= b.id %>', this)" <%= b.rem <= 0 ? 'disabled' : '' %>
+                                    class="break-opt rounded-lg p-3 text-center border transition <%= b.rem <= 0 ? 'bg-slate-900 border-slate-800 opacity-40 cursor-not-allowed' : 'bg-slate-900 border-slate-700 hover:border-indigo-500 cursor-pointer' %>">
+                                    <div class="font-bold text-sm <%= b.rem <= 0 ? 'text-slate-500' : 'text-slate-200' %>"><%= b.label %></div>
+                                    <div class="text-[11px] text-indigo-400"><%= b.mins %> min</div>
+                                    <div class="text-[11px] mt-1 <%= b.rem <= 0 ? 'text-slate-600' : 'text-slate-400' %>"><%= b.rem %>m left</div>
+                                </button>
+                            <% }) %>
+                        </div>
+                        <button type="submit" id="startBreakBtn" disabled class="w-full py-2.5 rounded font-semibold transition text-sm bg-slate-700 text-slate-500 cursor-not-allowed">Select a break above to start</button>
+                    </form>
+                    <script>
+                        let chosenBreak = null;
+                        function selectBreak(id, el) {
+                            chosenBreak = id;
+                            document.querySelectorAll('.break-opt').forEach(o => o.classList.remove('border-indigo-500', 'bg-indigo-600/10'));
+                            el.classList.add('border-indigo-500', 'bg-indigo-600/10');
+                            const btn = document.getElementById('startBreakBtn');
+                            btn.disabled = false;
+                            btn.className = 'w-full py-2.5 rounded font-semibold transition text-sm bg-emerald-600 hover:bg-emerald-500 text-white';
+                            btn.innerText = 'Start Break';
+                        }
+                        function pickBreak() {
+                            if (!chosenBreak) return false;
+                            document.getElementById('breakChoice').value = chosenBreak;
+                            return true;
+                        }
+                    </script>
+                <% } %>
             </div>
 
             <!-- Recent Links -->
@@ -139,7 +140,7 @@
                 </div>
                 <div class="text-xs text-indigo-400 font-semibold mb-3 bg-slate-900 p-2 rounded border border-slate-750 text-center"><%= scheduleRange %></div>
                 <div class="space-y-2 text-xs">
-                    <% 
+                    <%
                         const daysMap = [
                             { key: 'mon', label: 'Monday' },
                             { key: 'tue', label: 'Tuesday' },
@@ -159,32 +160,84 @@
                 </div>
             </div>
 
-            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
-                <h2 class="text-lg font-semibold mb-4 text-indigo-300">Change Password</h2>
-                <form action="/change-password" method="POST" class="space-y-3">
-                    <div>
-                        <label class="block text-sm text-slate-400 mb-1">Current Password</label>
-                        <input type="password" name="current_password" required class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm text-slate-400 mb-1">New Password</label>
-                        <input type="password" name="new_password" required minlength="4" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm text-slate-400 mb-1">Confirm New Password</label>
-                        <input type="password" name="confirm_password" required minlength="4" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
-                    </div>
-                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 py-2 rounded font-semibold transition">Change Password</button>
-                </form>
-            </div>
         </div>
     </div>
+
+    <!-- Change Password Modal -->
+    <div id="pwModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl w-full max-w-md p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-indigo-300">Change Password</h2>
+                <button type="button" onclick="closePwModal()" class="text-slate-500 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            <form action="/change-password" method="POST" class="space-y-3">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Current Password</label>
+                    <div class="relative">
+                        <input type="password" name="current_password" required class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
+                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">New Password</label>
+                    <div class="relative">
+                        <input type="password" name="new_password" required minlength="4" class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
+                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Confirm New Password</label>
+                    <div class="relative">
+                        <input type="password" name="confirm_password" required minlength="4" class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
+                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="closePwModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 py-2 rounded font-semibold transition text-sm">Cancel</button>
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded font-semibold transition text-sm">Save Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openPwModal() { document.getElementById('pwModal').classList.remove('hidden'); }
+        function closePwModal() { document.getElementById('pwModal').classList.add('hidden'); }
+        document.getElementById('pwModal').addEventListener('click', function(e) { if (e.target === this) closePwModal(); });
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closePwModal(); });
+
+        function togglePw(btn) {
+            const wrap = btn.closest('.relative');
+            const input = wrap ? wrap.querySelector('input') : null;
+            if (!input) return;
+            const eyeOn = btn.querySelector('.eye-on');
+            const eyeOff = btn.querySelector('.eye-off');
+            if (input.type === 'password') {
+                input.type = 'text';
+                if (eyeOn) eyeOn.classList.add('hidden');
+                if (eyeOff) eyeOff.classList.remove('hidden');
+            } else {
+                input.type = 'password';
+                if (eyeOn) eyeOn.classList.remove('hidden');
+                if (eyeOff) eyeOff.classList.add('hidden');
+            }
+        }
+    </script>
 
     <% if (breakStatus !== 'off' && breakStartTime) { %>
     <script>
         const startTime = parseInt("<%= breakStartTime %>");
-        const totalDurationMins = "<%= breakStatus %>" === 'break1' ? 30 : 15;
-        const totalDurationSecs = totalDurationMins * 60;
+        const remainingAtStart = parseInt("<%= breakStatus === 'break1' ? b1Rem : (breakStatus === 'break2' ? b2Rem : b3Rem) %>");
+        const totalDurationSecs = remainingAtStart * 60;
 
         function updateTimer() {
             const elapsedSecs = Math.floor((Date.now() - startTime) / 1000);
