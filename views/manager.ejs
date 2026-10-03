@@ -205,9 +205,20 @@
                                 <% if (m.email) { %><div class="text-xs text-slate-500"><%= m.email %></div><% } %>
                             </div>
                         </div>
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-2 flex-wrap justify-end">
                             <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded <%= m.role === 'owner' ? 'bg-amber-600/20 text-amber-300' : 'bg-indigo-600/20 text-indigo-300' %>"><%= m.role %></span>
                             <% if (m.role === 'manager') { %>
+                            <form action="/reset-manager-password" method="POST" class="flex gap-1 items-center" onsubmit="return confirm('Reset password for <%= m.full_name %> (<%= m.username %>)? They will need the new password to log in.');">
+                                <input type="hidden" name="username" value="<%= m.username %>">
+                                <div class="relative">
+                                    <input type="password" name="new_password" required minlength="4" placeholder="New password" class="bg-slate-800 border border-slate-700 rounded pl-2 pr-8 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500 w-28">
+                                    <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-2 text-slate-500 hover:text-slate-200">
+                                        <svg class="eye-on w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                        <svg class="eye-off w-3.5 h-3.5 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                                    </button>
+                                </div>
+                                <button type="submit" class="bg-amber-600/20 hover:bg-amber-600/40 text-amber-300 px-2.5 py-1.5 rounded text-xs font-semibold transition">Reset</button>
+                            </form>
                             <form action="/delete-manager" method="POST" onsubmit="return confirm('Remove manager <%= m.full_name %> (<%= m.username %>)? They will lose access immediately.');">
                                 <input type="hidden" name="username" value="<%= m.username %>">
                                 <button type="submit" class="bg-red-600/20 hover:bg-red-600/40 text-red-300 px-3 py-1.5 rounded text-xs font-semibold transition">Remove</button>
@@ -217,6 +228,26 @@
                     </div>
                 <% }) %>
             </div>
+        </div>
+        <% } %>
+
+        <% if (isOwner) { %>
+        <!-- Account Recovery (Owner only) -->
+        <div class="bg-slate-800 p-6 rounded-xl border border-amber-600/30 shadow-lg">
+            <h2 class="text-lg font-semibold mb-1 text-amber-300">Account Recovery</h2>
+            <p class="text-xs text-slate-500 mb-4">If you ever forget your Owner password, this recovery code unlocks the "Forgot password?" page on the login screen — no email needed. Keep it somewhere safe (e.g. your phone's password manager). Generating a new code invalidates the old one.</p>
+            <% if (recoveryCode) { %>
+                <div class="flex flex-wrap items-center gap-3">
+                    <code class="bg-slate-900 border border-amber-600/40 text-amber-200 text-lg font-mono font-bold tracking-widest px-4 py-2 rounded select-all"><%= recoveryCode %></code>
+                    <form action="/generate-recovery-code" method="POST" onsubmit="return confirm('Generate a new recovery code? The old one will stop working.');">
+                        <button type="submit" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition">Generate New Code</button>
+                    </form>
+                </div>
+            <% } else { %>
+                <form action="/generate-recovery-code" method="POST">
+                    <button type="submit" class="bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded text-sm font-semibold transition">Generate Recovery Code</button>
+                </form>
+            <% } %>
         </div>
         <% } %>
 
