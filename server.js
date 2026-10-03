@@ -149,6 +149,20 @@ function requireOwner(req, res, next) {
     return res.redirect('/login');
 }
 
+// One-time-style account recovery code for the Owner (shown on the owner
+// dashboard; usable on the "Forgot password?" page if the owner is locked out).
+// 12 chars from an unambiguous alphabet: ~60 bits of entropy.
+function generateRecoveryCode() {
+    const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    const bytes = crypto.randomBytes(12);
+    let s = '';
+    for (let i = 0; i < 12; i++) s += alphabet[bytes[i] % alphabet.length];
+    return s.slice(0, 4) + '-' + s.slice(4, 8) + '-' + s.slice(8, 12);
+}
+    if (getAuth(req).role === 'owner') return next();
+    return res.redirect('/login');
+}
+
 function getShiftDate() {
     const d = new Date();
     if (d.getHours() < 12) {
@@ -336,19 +350,22 @@ app.get('/manager', requireManager, (req, res) => {
         db.all(`SELECT * FROM users WHERE role = 'agent' ORDER BY full_name`, (err, agents) => {
             db.all(`SELECT username, full_name, date, COUNT(*) as total_links FROM links GROUP BY username, date ORDER BY date DESC, total_links DESC`, (err, dailyStats) => {
                 db.get(`SELECT value FROM meta WHERE key = 'schedule_range'`, (err, metaRow) => {
-                    db.all(`SELECT username, full_name, email, role FROM users WHERE role IN ('owner', 'manager') ORDER BY full_name`, (err, managers) => {
-                        res.render('manager', {
-                            links: filteredLinks || [],
-                            agents: agents || [],
-                            managers: managers || [],
-                            dailyStats: dailyStats || [],
-                            scheduleRange: metaRow ? metaRow.value : '',
-                            selectedDate: selectedDate,
-                            selectedAgent: selectedAgent,
-                            isOwner: isOwner,
-                            userRole: loggedRole,
-                            success: req.query.success || null,
-                            error: req.query.error || null
+                                        db.all(`SELECT username, full_name, email, role FROM users WHERE role IN ('owner', 'manager') ORDER BY full_name`, (err, managers) => {
+                        db.get(`SELECT value FROM meta WHERE key = 'recovery_code'`, (err, rcRow) => {
+                            res.render('manager', {
+                                links: filteredLinks || [],
+                                agents: agents || [],
+                                managers: managers || [],
+                                recoveryCode: rcRow ? rcRow.value : null,
+                                dailyStats: dailyStats || [],
+                                scheduleRange: metaRow ? metaRow.value : '',
+                                selectedDate: selectedDate,
+                                selectedAgent: selectedAgent,
+                                isOwner: isOwner,
+                                userRole: loggedRole,
+                                success: req.query.success || null,
+                                error: req.query.error || null
+                            });
                         });
                     });
                 });
@@ -531,6 +548,87 @@ app.post('/delete-manager', requireOwner, (req, res) => {
                 return res.redirect('/manager?error=' + encodeURIComponent('Could not delete manager.'));
             }
             res.redirect('/manager?success=' + encodeURIComponent(`Manager "${target.full_name}" (${username}) deleted.`));
+        });
+    });
+});
+
+// --- Generate Recovery Code (owner only) ---
+// Shown on the owner dashboard. If the owner ever forgets their password,
+// this code unlocks the "Forgot password?" page — no email needed.
+app.post('/generate-recovery-code', requireOwner, (req, res) => {
+    const code = generateRecoveryCode();
+    db.run(`INSERT OR REPLACE INTO meta (key, value) VALUES ('recovery_code', ?)`, [code], (err) => {
+        if (err) {
+            return res.redirect('/manager?error=' + encodeURIComponent('Could not generate recovery code.'));
+        }
+        res.redirect('/manager?success=' + encodeURIComponent('New recovery code generated! Write it down somewhere safe — it is your lifeline if you forget your password.'));
+    });
+});
+
+// --- Reset Manager Password (owner only) ---
+// For when a manager forgets their password: the owner sets a new one and
+// shares it privately. The Owner account itself cannot be reset this way.
+app.post('/reset-manager-password', requireOwner, (req, res) => {
+    const username = (req.body.username || '').trim();
+    const newPassword = req.body.new_password || '';
+
+    if (!username || !newPassword) {
+        return res.redirect('/manager?error=' + encodeURIComponent('Username and new password are required.'));
+    }
+    if (newPassword.length < 4) {
+        return res.redirect('/manager?error=' + encodeURIComponent('Password must be at least 4 characters long.'));
+    }
+
+    db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, target) => {
+        if (err || !target || target.role !== 'manager') {
+            return res.redirect('/manager?error=' + encodeURIComponent('Manager not found.'));
+        }
+        db.run(`UPDATE users SET password = ? WHERE username = ?`, [bcrypt.hashSync(newPassword, 10), username], (err) => {
+            if (err) {
+                return res.redirect('/manager?error=' + encodeURIComponent('Could not reset password.'));
+            }
+            res.redirect('/manager?success=' + encodeURIComponent(`Password reset for manager "${target.full_name}". Share the new password with them privately.`));
+        });
+    });
+});
+
+// --- Forgot Password (public; owner only via recovery code) ---
+app.get('/forgot-password', (req, res) => {
+    res.render('forgot-password', { error: null });
+});
+
+app.post('/forgot-password', (req, res) => {
+    const username = (req.body.username || '').trim();
+    const code = (req.body.code || '').trim().toUpperCase();
+    const newPassword = req.body.new_password || '';
+    const confirmPassword = req.body.confirm_password || '';
+
+    const fail = (msg) => res.render('forgot-password', { error: msg });
+
+    if (!username || !code || !newPassword || !confirmPassword) {
+        return fail('Please fill in all fields.');
+    }
+    if (newPassword.length < 4) {
+        return fail('New password must be at least 4 characters long.');
+    }
+    if (newPassword !== confirmPassword) {
+        return fail('New passwords do not match.');
+    }
+
+    db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, user) => {
+        if (err || !user || user.role !== 'owner') {
+            return fail('Invalid username or recovery code.');
+        }
+        db.get(`SELECT value FROM meta WHERE key = 'recovery_code'`, (err, rcRow) => {
+            if (err || !rcRow || !rcRow.value || rcRow.value.toUpperCase() !== code) {
+                return fail('Invalid username or recovery code.');
+            }
+            db.run(`UPDATE users SET password = ? WHERE username = ?`, [bcrypt.hashSync(newPassword, 10), username], (err) => {
+                if (err) {
+                    return fail('Could not reset password. Please try again.');
+                }
+                res.redirect('/login');
+            });
         });
     });
 });
