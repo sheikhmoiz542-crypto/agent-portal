@@ -160,6 +160,24 @@
                 </div>
             </div>
 
+            <!-- Account Recovery -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-amber-600/30 shadow-lg">
+                <h2 class="text-lg font-semibold mb-1 text-amber-300">Account Recovery</h2>
+                <p class="text-xs text-slate-500 mb-4">Forgot your password? Use this code on the "Forgot password?" page. Keep it safe.</p>
+                <% if (recoveryCode) { %>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <code class="bg-slate-900 border border-amber-600/40 text-amber-200 font-mono font-bold tracking-widest px-3 py-2 rounded select-all"><%= recoveryCode %></code>
+                        <form action="/generate-recovery-code" method="POST" onsubmit="return confirm('Generate a new recovery code? The old one will stop working.');">
+                            <button type="submit" class="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded text-xs font-semibold transition">New Code</button>
+                        </form>
+                    </div>
+                <% } else { %>
+                    <form action="/generate-recovery-code" method="POST">
+                        <button type="submit" class="bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded text-sm font-semibold transition">Generate Recovery Code</button>
+                    </form>
+                <% } %>
+            </div>
+
         </div>
     </div>
 
