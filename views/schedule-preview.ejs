@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -20,27 +20,23 @@
                 <thead>
                     <tr class="bg-slate-900 text-slate-400 border-b border-slate-700">
                         <th class="p-3">Agent Name</th>
-                        <th class="p-3">Mon</th>
-                        <th class="p-3">Tue</th>
-                        <th class="p-3">Wed</th>
-                        <th class="p-3">Thu</th>
-                        <th class="p-3">Fri</th>
-                        <th class="p-3">Sat</th>
-                        <th class="p-3">Sun</th>
+                        <th class="p-3 text-center">Mon</th>
+                        <th class="p-3 text-center">Tue</th>
+                        <th class="p-3 text-center">Wed</th>
+                        <th class="p-3 text-center">Thu</th>
+                        <th class="p-3 text-center">Fri</th>
+                        <th class="p-3 text-center">Sat</th>
+                        <th class="p-3 text-center">Sun</th>
                     </tr>
                 </thead>
                 <tbody>
+                    <% const days = ['mon','tue','wed','thu','fri','sat','sun']; %>
                     <% agents.forEach(agent => { %>
                         <tr class="border-b border-slate-750 hover:bg-slate-750/50">
-                            <td class="p-3 font-bold text-indigo-300"><%= agent.full_name %></td>
-                            <td class="p-3 text-slate-300"><%= agent.mon %></td>
-                            <td class="p-3 text-slate-300"><%= agent.tue %></td>
-                            <td class="p-3 text-slate-300"><%= agent.wed %></td>
-                            <td class="p-3 text-slate-300"><del class="text-slate-500"><%= agent.thu %></del></td> <!-- Fixed visual -->
-                            <td class="p-3 text-slate-300"><%= agent.thu %></td>
-                            <td class="p-3 text-slate-300"><%= agent.fri %></td>
-                            <td class="p-3 text-slate-300"><%= agent.sat %></td>
-                            <td class="p-3 text-slate-300"><%= agent.sun %></td>
+                            <td class="p-3 font-bold text-indigo-300 whitespace-nowrap"><%= agent.full_name %></td>
+                            <% days.forEach(d => { %>
+                                <td class="p-3 text-center <%= agent[d] === 'OFF' ? 'text-slate-600' : 'text-slate-200 font-medium' %>"><%= agent[d] %></td>
+                            <% }) %>
                         </tr>
                     <% }) %>
                 </tbody>
