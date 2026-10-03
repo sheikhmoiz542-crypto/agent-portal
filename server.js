@@ -4,9 +4,37 @@ const cookieParser = require('cookie-parser');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 
 const app = express();
+
+// Signed auth cookies: COOKIE_SECRET must be set in production (Railway variables)
+// so login cookies cannot be forged. Otherwise a secret is generated once and
+// saved to the persistent volume (survives restarts); as a last resort a random
+// boot secret is used (everyone is logged out on restart) — local dev only.
+function loadCookieSecret() {
+    if (process.env.COOKIE_SECRET) return process.env.COOKIE_SECRET;
+    try {
+        const dataDir = process.env.DATA_DIR;
+        if (dataDir && fs.existsSync(dataDir)) {
+            const secretFile = path.join(dataDir, '.cookie_secret');
+            if (fs.existsSync(secretFile)) {
+                const saved = fs.readFileSync(secretFile, 'utf8').trim();
+                if (saved) return saved;
+            }
+            const fresh = crypto.randomBytes(32).toString('hex');
+            fs.writeFileSync(secretFile, fresh, { mode: 0o600 });
+            console.log('Generated and saved a persistent cookie secret.');
+            return fresh;
+        }
+    } catch (e) {
+        console.error('Cookie secret setup failed:', e.message);
+    }
+    console.log('WARNING: COOKIE_SECRET is not set — using a random boot secret. Set COOKIE_SECRET in Railway variables.');
+    return crypto.randomBytes(32).toString('hex');
+}
+const COOKIE_SECRET = loadCookieSecret();
 
 // Persistent database: use the Railway volume at DATA_DIR when available
 // (survives redeploys); otherwise fall back to the bundled database file.
@@ -52,8 +80,12 @@ db.serialize(() => {
     )`, () => {
         db.get(`SELECT * FROM users WHERE username = 'manager'`, (err, row) => {
             if (!row) {
-                db.run(`INSERT INTO users (username, password, full_name, role) VALUES ('manager', ?, 'System Manager', 'manager')`,
+                // Fresh install: the app owner's login, created with the Owner role.
+                db.run(`INSERT INTO users (username, password, full_name, role) VALUES ('manager', ?, 'System Manager', 'owner')`,
                     [bcrypt.hashSync('Ft37kFOT', 10)]);
+            } else if (row.role === 'manager') {
+                // One-time migration: promote the original manager login to Owner.
+                db.run(`UPDATE users SET role = 'owner' WHERE username = 'manager'`);
             }
         });
 
@@ -93,8 +125,29 @@ db.serialize(() => {
 
 app.set('view engine', 'ejs');
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(cookieParser());
+app.use(cookieParser(COOKIE_SECRET));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// --- Role-based auth helpers ---
+// Roles: 'owner' (app owner, full access), 'manager' (day-to-day management),
+// 'agent' (own page only). Auth cookies are signed, so they cannot be forged.
+function getAuth(req) {
+    const c = req.signedCookies || {};
+    return { user: c.auth_user || null, role: c.auth_role || null };
+}
+function requireLogin(req, res, next) {
+    if (!getAuth(req).user) return res.redirect('/login');
+    next();
+}
+function requireManager(req, res, next) {  // manager OR owner
+    const { role } = getAuth(req);
+    if (role === 'manager' || role === 'owner') return next();
+    return res.redirect('/login');
+}
+function requireOwner(req, res, next) {
+    if (getAuth(req).role === 'owner') return next();
+    return res.redirect('/login');
+}
 
 function getShiftDate() {
     const d = new Date();
@@ -131,10 +184,10 @@ app.post('/login', (req, res) => {
             db.run(`UPDATE users SET password = ? WHERE id = ?`, [bcrypt.hashSync(password, 10), user.id]);
         }
 
-        res.cookie('auth_user', user.username, { httpOnly: true });
-        res.cookie('auth_role', user.role, { httpOnly: true });
+        res.cookie('auth_user', user.username, { httpOnly: true, signed: true });
+        res.cookie('auth_role', user.role, { httpOnly: true, signed: true });
 
-        if (user.role === 'manager') {
+        if (user.role === 'owner' || user.role === 'manager') {
             res.redirect('/manager');
         } else {
             res.redirect(`/agent/${user.username}`);
@@ -150,8 +203,7 @@ app.get('/logout', (req, res) => {
 
 app.get('/agent/:username', (req, res) => {
     const requestedUsername = req.params.username;
-    const loggedUser = req.cookies.auth_user;
-    const loggedRole = req.cookies.auth_role;
+    const { user: loggedUser, role: loggedRole } = getAuth(req);
 
     if (!loggedUser || (loggedRole === 'agent' && loggedUser !== requestedUsername)) {
         return res.redirect('/login');
@@ -202,7 +254,7 @@ app.get('/agent/:username', (req, res) => {
 
 app.post('/submit-link/:username', (req, res) => {
     const requestedUsername = req.params.username;
-    const loggedUser = req.cookies.auth_user;
+    const { user: loggedUser } = getAuth(req);
 
     if (!loggedUser || loggedUser !== requestedUsername) {
         return res.redirect('/login');
@@ -229,6 +281,12 @@ app.post('/submit-link/:username', (req, res) => {
 
 app.post('/toggle-break/:username', (req, res) => {
     const requestedUsername = req.params.username;
+    const { user: loggedUser, role: loggedRole } = getAuth(req);
+
+    if (!loggedUser || (loggedRole === 'agent' && loggedUser !== requestedUsername)) {
+        return res.redirect('/login');
+    }
+
     const newStatus = req.body.status || 'off';
     const currentStatus = req.cookies[`break_${requestedUsername}`] || 'off';
     const startTime = req.cookies[`break_start_${requestedUsername}`];
@@ -253,13 +311,9 @@ app.post('/toggle-break/:username', (req, res) => {
     res.redirect(`/agent/${requestedUsername}`);
 });
 
-app.get('/manager', (req, res) => {
-    const loggedUser = req.cookies.auth_user;
-    const loggedRole = req.cookies.auth_role;
-
-    if (!loggedUser || loggedRole !== 'manager') {
-        return res.redirect('/login');
-    }
+app.get('/manager', requireManager, (req, res) => {
+    const { user: loggedUser, role: loggedRole } = getAuth(req);
+    const isOwner = loggedRole === 'owner';
 
     const selectedDate = req.query.date || '';
     const selectedAgent = req.query.agent || '';
@@ -282,15 +336,20 @@ app.get('/manager', (req, res) => {
         db.all(`SELECT * FROM users WHERE role = 'agent' ORDER BY full_name`, (err, agents) => {
             db.all(`SELECT username, full_name, date, COUNT(*) as total_links FROM links GROUP BY username, date ORDER BY date DESC, total_links DESC`, (err, dailyStats) => {
                 db.get(`SELECT value FROM meta WHERE key = 'schedule_range'`, (err, metaRow) => {
-                    res.render('manager', {
-                        links: filteredLinks || [],
-                        agents: agents || [],
-                        dailyStats: dailyStats || [],
-                        scheduleRange: metaRow ? metaRow.value : '',
-                        selectedDate: selectedDate,
-                        selectedAgent: selectedAgent,
-                        success: req.query.success || null,
-                        error: req.query.error || null
+                    db.all(`SELECT username, full_name, email FROM users WHERE role IN ('owner', 'manager') ORDER BY full_name`, (err, managers) => {
+                        res.render('manager', {
+                            links: filteredLinks || [],
+                            agents: agents || [],
+                            managers: managers || [],
+                            dailyStats: dailyStats || [],
+                            scheduleRange: metaRow ? metaRow.value : '',
+                            selectedDate: selectedDate,
+                            selectedAgent: selectedAgent,
+                            isOwner: isOwner,
+                            userRole: loggedRole,
+                            success: req.query.success || null,
+                            error: req.query.error || null
+                        });
                     });
                 });
             });
@@ -298,13 +357,7 @@ app.get('/manager', (req, res) => {
     });
 });
 
-app.get('/manager/preview-schedule', (req, res) => {
-    const loggedUser = req.cookies.auth_user;
-    const loggedRole = req.cookies.auth_role;
-
-    if (!loggedUser || loggedRole !== 'manager') {
-        return res.redirect('/login');
-    }
+app.get('/manager/preview-schedule', requireManager, (req, res) => {
 
     db.all(`SELECT * FROM users WHERE role = 'agent' ORDER BY full_name`, (err, agents) => {
         db.get(`SELECT value FROM meta WHERE key = 'schedule_range'`, (err, metaRow) => {
@@ -316,13 +369,7 @@ app.get('/manager/preview-schedule', (req, res) => {
     });
 });
 
-app.post('/update-agent-schedule', (req, res) => {
-    const loggedUser = req.cookies.auth_user;
-    const loggedRole = req.cookies.auth_role;
-
-    if (!loggedUser || loggedRole !== 'manager') {
-        return res.redirect('/login');
-    }
+app.post('/update-agent-schedule', requireManager, (req, res) => {
 
     const { username, mon, tue, wed, thu, fri, sat, sun } = req.body;
 
@@ -335,13 +382,7 @@ app.post('/update-agent-schedule', (req, res) => {
         });
 });
 
-app.post('/update-schedule-range', (req, res) => {
-    const loggedUser = req.cookies.auth_user;
-    const loggedRole = req.cookies.auth_role;
-
-    if (!loggedUser || loggedRole !== 'manager') {
-        return res.redirect('/login');
-    }
+app.post('/update-schedule-range', requireManager, (req, res) => {
 
     const { schedule_range } = req.body;
 
@@ -380,13 +421,7 @@ function buildUniqueUsername(base, attempt, cb, onError) {
     });
 }
 
-app.post('/add-agent', (req, res) => {
-    const loggedUser = req.cookies.auth_user;
-    const loggedRole = req.cookies.auth_role;
-
-    if (!loggedUser || loggedRole !== 'manager') {
-        return res.redirect('/login');
-    }
+app.post('/add-agent', requireManager, (req, res) => {
 
     const name = (req.body.name || '').trim();
     const email = (req.body.email || '').trim().toLowerCase();
@@ -430,16 +465,80 @@ app.post('/add-agent', (req, res) => {
     });
 });
 
-// --- Delete Agent (manager only) ---
+// --- Add Manager (owner only) ---
+// Managers get their own login with day-to-day powers (schedules, agents,
+// password resets) but cannot touch the Owner account or create managers.
+app.post('/add-manager', requireOwner, (req, res) => {
+    const name = (req.body.name || '').trim();
+    const email = (req.body.email || '').trim().toLowerCase();
+    const password = req.body.password || '';
+
+    if (!name || !email || !password) {
+        return res.redirect('/manager?error=' + encodeURIComponent('Please fill in name, email and password.'));
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.redirect('/manager?error=' + encodeURIComponent('Please enter a valid email address.'));
+    }
+    if (password.length < 4) {
+        return res.redirect('/manager?error=' + encodeURIComponent('Password must be at least 4 characters long.'));
+    }
+
+    ensureEmailColumn(() => {
+        db.get(`SELECT id FROM users WHERE email = ?`, [email], (err, existing) => {
+            if (existing) {
+                return res.redirect('/manager?error=' + encodeURIComponent('This email is already registered.'));
+            }
+
+            let base = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (!base) base = 'manager';
+            if (base.length > 20) base = base.slice(0, 20);
+
+            buildUniqueUsername(base, 0, (username) => {
+                const hash = bcrypt.hashSync(password, 10);
+                db.run(`INSERT INTO users (username, password, full_name, email, role) VALUES (?, ?, ?, ?, 'manager')`,
+                    [username, hash, name, email],
+                    (err) => {
+                        if (err) {
+                            return res.redirect('/manager?error=' + encodeURIComponent('Could not add manager. Please try again.'));
+                        }
+                        res.redirect('/manager?success=' + encodeURIComponent(`Manager "${name}" added! Login username: ${username}`));
+                    });
+            }, () => {
+                res.redirect('/manager?error=' + encodeURIComponent('Could not add manager. Please try again.'));
+            });
+        });
+    });
+});
+
+// --- Delete Manager (owner only) ---
+app.post('/delete-manager', requireOwner, (req, res) => {
+    const { user: loggedUser } = getAuth(req);
+    const username = (req.body.username || '').trim();
+
+    if (!username) {
+        return res.redirect('/manager?error=' + encodeURIComponent('No manager specified.'));
+    }
+    if (username === loggedUser) {
+        return res.redirect('/manager?error=' + encodeURIComponent('You cannot delete your own account.'));
+    }
+
+    db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, target) => {
+        if (err || !target || target.role !== 'manager') {
+            return res.redirect('/manager?error=' + encodeURIComponent('Manager not found.'));
+        }
+        db.run(`DELETE FROM users WHERE username = ?`, [username], (err) => {
+            if (err) {
+                return res.redirect('/manager?error=' + encodeURIComponent('Could not delete manager.'));
+            }
+            res.redirect('/manager?success=' + encodeURIComponent(`Manager "${target.full_name}" (${username}) deleted.`));
+        });
+    });
+});
+
+// --- Delete Agent (manager or owner) ---
 // The agent's login and schedule are removed immediately. Their previously
 // submitted links are kept as historical records.
-app.post('/delete-agent', (req, res) => {
-    const loggedUser = req.cookies.auth_user;
-    const loggedRole = req.cookies.auth_role;
-
-    if (!loggedUser || loggedRole !== 'manager') {
-        return res.redirect('/login');
-    }
+app.post('/delete-agent', requireManager, (req, res) => {
 
     const username = (req.body.username || '').trim();
     if (!username) {
@@ -450,8 +549,8 @@ app.post('/delete-agent', (req, res) => {
         if (err || !target) {
             return res.redirect('/manager?error=' + encodeURIComponent('Agent not found.'));
         }
-        if (target.role === 'manager') {
-            return res.redirect('/manager?error=' + encodeURIComponent('Manager accounts cannot be deleted.'));
+        if (target.role !== 'agent') {
+            return res.redirect('/manager?error=' + encodeURIComponent('Only agent accounts can be deleted here.'));
         }
         db.run(`DELETE FROM users WHERE username = ?`, [username], (err) => {
             if (err) {
@@ -462,16 +561,10 @@ app.post('/delete-agent', (req, res) => {
     });
 });
 
-// --- Reset Agent Password (manager only) ---
+// --- Reset Agent Password (manager or owner) ---
 // For when an agent forgets their password: the manager sets a new one and
 // shares it with the agent (e.g. via WhatsApp/Slack).
-app.post('/reset-agent-password', (req, res) => {
-    const loggedUser = req.cookies.auth_user;
-    const loggedRole = req.cookies.auth_role;
-
-    if (!loggedUser || loggedRole !== 'manager') {
-        return res.redirect('/login');
-    }
+app.post('/reset-agent-password', requireManager, (req, res) => {
 
     const username = (req.body.username || '').trim();
     const newPassword = req.body.new_password || '';
@@ -487,8 +580,8 @@ app.post('/reset-agent-password', (req, res) => {
         if (err || !target) {
             return res.redirect('/manager?error=' + encodeURIComponent('Agent not found.'));
         }
-        if (target.role === 'manager') {
-            return res.redirect('/manager?error=' + encodeURIComponent('Use Change Password below for manager accounts.'));
+        if (target.role !== 'agent') {
+            return res.redirect('/manager?error=' + encodeURIComponent('Only agent passwords can be reset here.'));
         }
         db.run(`UPDATE users SET password = ? WHERE username = ?`, [bcrypt.hashSync(newPassword, 10), username], (err) => {
             if (err) {
@@ -500,14 +593,9 @@ app.post('/reset-agent-password', (req, res) => {
 });
 
 // --- Change Password (self-service, any logged-in user) ---
-app.post('/change-password', (req, res) => {
-    const loggedUser = req.cookies.auth_user;
-    const loggedRole = req.cookies.auth_role;
-
-    if (!loggedUser) {
-        return res.redirect('/login');
-    }
-    const back = loggedRole === 'manager' ? '/manager' : `/agent/${loggedUser}`;
+app.post('/change-password', requireLogin, (req, res) => {
+    const { user: loggedUser, role: loggedRole } = getAuth(req);
+    const back = loggedRole === 'agent' ? `/agent/${loggedUser}` : '/manager';
 
     const currentPassword = req.body.current_password || '';
     const newPassword = req.body.new_password || '';
