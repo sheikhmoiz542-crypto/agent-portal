@@ -22,6 +22,7 @@
         </div>
         <div class="flex gap-3">
             <a href="/manager/preview-schedule" target="_blank" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-sm font-semibold transition">Preview Team Schedule</a>
+            <button onclick="openPwModal()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition">Change Password</button>
             <a href="/logout" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded text-sm font-semibold transition">Logout</a>
         </div>
     </nav>
@@ -125,46 +126,6 @@
                 </div>
             </form>
             <p class="text-xs text-slate-500 mt-3">The agent's login username is auto-generated from the email address (e.g. ali.khan@company.com → alikhan). New agents start with all days OFF — set their weekly schedule below.</p>
-        </div>
-
-        <!-- Change Password (Manager) -->
-        <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
-            <h2 class="text-lg font-semibold mb-4 text-indigo-300">Change Your Password</h2>
-            <form action="/change-password" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                <div>
-                    <label class="block text-sm text-slate-400 mb-1">Current Password</label>
-                    <div class="relative">
-                        <input type="password" name="current_password" required class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
-                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
-                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
-                        </button>
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-sm text-slate-400 mb-1">New Password</label>
-                    <div class="relative">
-                        <input type="password" name="new_password" required minlength="4" class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
-                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
-                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
-                        </button>
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-sm text-slate-400 mb-1">Confirm New Password</label>
-                    <div class="relative">
-                        <input type="password" name="confirm_password" required minlength="4" class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
-                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
-                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
-                        </button>
-                    </div>
-                </div>
-                <div>
-                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 px-6 py-2 rounded font-semibold transition">Change Password</button>
-                </div>
-            </form>
         </div>
 
         <% if (isOwner) { %>
@@ -379,7 +340,58 @@
         </div>
     </div>
 
+    <!-- Change Password Modal -->
+    <div id="pwModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl w-full max-w-md p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-indigo-300">Change Password</h2>
+                <button type="button" onclick="closePwModal()" class="text-slate-500 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            <form action="/change-password" method="POST" class="space-y-3">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Current Password</label>
+                    <div class="relative">
+                        <input type="password" name="current_password" required class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
+                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">New Password</label>
+                    <div class="relative">
+                        <input type="password" name="new_password" required minlength="4" class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
+                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Confirm New Password</label>
+                    <div class="relative">
+                        <input type="password" name="confirm_password" required minlength="4" class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
+                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="closePwModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 py-2 rounded font-semibold transition text-sm">Cancel</button>
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded font-semibold transition text-sm">Save Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
+        function openPwModal() { document.getElementById('pwModal').classList.remove('hidden'); }
+        function closePwModal() { document.getElementById('pwModal').classList.add('hidden'); }
+        document.getElementById('pwModal').addEventListener('click', function(e) { if (e.target === this) closePwModal(); });
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closePwModal(); });
+
         // Show/hide password toggle for the eye icons
         function togglePw(btn) {
             const wrap = btn.closest('.relative');
