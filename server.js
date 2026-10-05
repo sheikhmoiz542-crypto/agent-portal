@@ -274,7 +274,6 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
                             b3Rem: b3Rem,
                             error: req.query.error || null,
                             success: req.query.success || null,
-                            warning: req.query.warning || null,
                             recentLinks: recentLinks || [],
                             recoveryCode: recoveryCode
                         });
@@ -300,15 +299,9 @@ app.post('/submit-link/:username', blockAgentOnMobile, (req, res) => {
     db.get(`SELECT * FROM users WHERE username = ?`, [requestedUsername], (err, user) => {
         if (!user) return res.redirect('/login');
 
-        db.get(`SELECT * FROM links WHERE link = ? AND username = ? AND date = ?`, [link, requestedUsername, shiftDate], (err, existingLink) => {
-            db.run(`INSERT INTO links (username, full_name, link, date) VALUES (?, ?, ?, ?)`,
-                [user.username, user.full_name, link, shiftDate], (err) => {
-                if (existingLink) {
-                    // Duplicate in the current shift: still submitted, but the agent is informed
-                    return res.redirect(`/agent/${requestedUsername}?warning=` + encodeURIComponent('Duplicate link — submitted again.'));
-                }
-                res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Link successfully logged!'));
-            });
+        db.run(`INSERT INTO links (username, full_name, link, date) VALUES (?, ?, ?, ?)`,
+            [user.username, user.full_name, link, shiftDate], (err) => {
+            res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Link successfully logged!'));
         });
     });
 });
