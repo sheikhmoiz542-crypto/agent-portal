@@ -305,7 +305,7 @@ app.post('/submit-link/:username', blockAgentOnMobile, (req, res) => {
                 [user.username, user.full_name, link, shiftDate], (err) => {
                 if (existingLink) {
                     // Duplicate in the current shift: still submitted, but the agent is informed
-                    return res.redirect(`/agent/${requestedUsername}?warning=` + encodeURIComponent('Note: you had already submitted this link in the current shift — it has been submitted again.'));
+                    return res.redirect(`/agent/${requestedUsername}?warning=` + encodeURIComponent('Duplicate link — submitted again.'));
                 }
                 res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Link successfully logged!'));
             });
