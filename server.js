@@ -274,6 +274,7 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
                             b3Rem: b3Rem,
                             error: req.query.error || null,
                             success: req.query.success || null,
+                            warning: req.query.warning || null,
                             recentLinks: recentLinks || [],
                             recoveryCode: recoveryCode
                         });
@@ -295,27 +296,19 @@ app.post('/submit-link/:username', blockAgentOnMobile, (req, res) => {
 
     const { link } = req.body;
     const shiftDate = getShiftDate();
-    const force = req.body.force === '1';
 
     db.get(`SELECT * FROM users WHERE username = ?`, [requestedUsername], (err, user) => {
         if (!user) return res.redirect('/login');
 
-        const doInsert = () => {
+        db.get(`SELECT * FROM links WHERE link = ? AND username = ? AND date = ?`, [link, requestedUsername, shiftDate], (err, existingLink) => {
             db.run(`INSERT INTO links (username, full_name, link, date) VALUES (?, ?, ?, ?)`,
                 [user.username, user.full_name, link, shiftDate], (err) => {
+                if (existingLink) {
+                    // Duplicate in the current shift: still submitted, but the agent is informed
+                    return res.redirect(`/agent/${requestedUsername}?warning=` + encodeURIComponent('Note: you had already submitted this link in the current shift — it has been submitted again.'));
+                }
                 res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Link successfully logged!'));
             });
-        };
-
-        // Agent chose "Submit Anyway" on the duplicate warning page
-        if (force) return doInsert();
-
-        db.get(`SELECT * FROM links WHERE link = ? AND username = ? AND date = ?`, [link, requestedUsername, shiftDate], (err, existingLink) => {
-            if (existingLink) {
-                // Warn instead of blocking — the agent decides whether to submit anyway
-                return res.render('duplicate-confirm', { username: requestedUsername, link: link });
-            }
-            doInsert();
         });
     });
 });
