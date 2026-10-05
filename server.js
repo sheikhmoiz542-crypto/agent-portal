@@ -204,7 +204,7 @@ app.post('/login', (req, res) => {
         }
 
         if (user.role === 'agent' && isMobileUA(req.get('User-Agent'))) {
-            return res.render('login', { error: 'The agent portal is for desktop/laptop use only. Please log in from a computer.' });
+            return res.render('login', { error: "This page isn't supported on mobile devices." });
         }
 
         if (!isHash) {
