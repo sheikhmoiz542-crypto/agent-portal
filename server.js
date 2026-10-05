@@ -273,9 +273,28 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
         const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
         const todayDayKey = days[new Date().getDay()];
 
-        const b1Rem = req.cookies[`b1_rem_${user.username}`] !== undefined ? parseInt(req.cookies[`b1_rem_${user.username}`]) : 30;
-        const b2Rem = req.cookies[`b2_rem_${user.username}`] !== undefined ? parseInt(req.cookies[`b2_rem_${user.username}`]) : 15;
-        const b3Rem = req.cookies[`b3_rem_${user.username}`] !== undefined ? parseInt(req.cookies[`b3_rem_${user.username}`]) : 15;
+        // Breaks reset with the agent's own shift. break_shift_<username> records which
+        // shift the break cookies belong to; a new shift means fresh 30/15/15 breaks,
+        // whether the browser stayed open or was closed.
+        const breakShiftKey = String(getAgentShiftStartMs(user, new Date()) || ('sys:' + shiftDate));
+        const ownBreaks = loggedRole === 'agent' && loggedUser === requestedUsername;
+        let b1Rem, b2Rem, b3Rem, breakStatus, breakStartTime;
+        if (ownBreaks && req.cookies[`break_shift_${user.username}`] !== breakShiftKey) {
+            b1Rem = 30; b2Rem = 15; b3Rem = 15;
+            breakStatus = 'off'; breakStartTime = null;
+            res.clearCookie(`break_${user.username}`);
+            res.clearCookie(`break_start_${user.username}`);
+            res.clearCookie(`b1_rem_${user.username}`);
+            res.clearCookie(`b2_rem_${user.username}`);
+            res.clearCookie(`b3_rem_${user.username}`);
+            res.cookie(`break_shift_${user.username}`, breakShiftKey, { httpOnly: true });
+        } else {
+            b1Rem = req.cookies[`b1_rem_${user.username}`] !== undefined ? parseInt(req.cookies[`b1_rem_${user.username}`]) : 30;
+            b2Rem = req.cookies[`b2_rem_${user.username}`] !== undefined ? parseInt(req.cookies[`b2_rem_${user.username}`]) : 15;
+            b3Rem = req.cookies[`b3_rem_${user.username}`] !== undefined ? parseInt(req.cookies[`b3_rem_${user.username}`]) : 15;
+            breakStatus = req.cookies[`break_${user.username}`] || 'off';
+            breakStartTime = req.cookies[`break_start_${user.username}`] || null;
+        }
 
         db.get(`SELECT value FROM meta WHERE key = 'schedule_range'`, (err, metaRow) => {
             const scheduleRange = metaRow ? metaRow.value : 'Current Week Schedule';
@@ -296,8 +315,8 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
                             mySchedule: user,
                             scheduleRange: scheduleRange,
                             todayDayKey: todayDayKey,
-                            breakStatus: req.cookies[`break_${user.username}`] || 'off',
-                            breakStartTime: req.cookies[`break_start_${user.username}`] || null,
+                            breakStatus: breakStatus,
+                            breakStartTime: breakStartTime,
                             b1Rem: b1Rem,
                             b2Rem: b2Rem,
                             b3Rem: b3Rem,
