@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Duplicate Link - E3 Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white flex items-center justify-center min-h-screen p-6">
+    <div class="bg-slate-800 p-8 rounded-xl shadow-xl max-w-md w-full border border-amber-600/30 text-center">
+        <div class="w-14 h-14 mx-auto mb-4 rounded-xl bg-amber-600/20 flex items-center justify-center">
+            <svg class="w-7 h-7 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <h2 class="text-xl font-bold mb-2 text-amber-300">Duplicate Link</h2>
+        <p class="text-sm text-slate-400 mb-3">You have already submitted this link in the current shift:</p>
+        <code class="block bg-slate-900 border border-slate-700 text-slate-300 text-xs font-mono px-3 py-2 rounded mb-4 break-all text-left"><%= link %></code>
+        <p class="text-sm text-slate-400 mb-6">Do you still want to submit it?</p>
+        <div class="flex gap-3">
+            <a href="/agent/<%= username %>" class="flex-1 bg-slate-700 hover:bg-slate-600 py-2 rounded font-semibold transition text-sm text-center">Go Back</a>
+            <form action="/submit-link/<%= username %>" method="POST" class="flex-1">
+                <input type="hidden" name="link" value="<%= link %>">
+                <input type="hidden" name="force" value="1">
+                <button type="submit" class="w-full bg-amber-600 hover:bg-amber-500 py-2 rounded font-semibold transition text-sm">Submit Anyway</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
