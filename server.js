@@ -295,19 +295,27 @@ app.post('/submit-link/:username', blockAgentOnMobile, (req, res) => {
 
     const { link } = req.body;
     const shiftDate = getShiftDate();
+    const force = req.body.force === '1';
 
     db.get(`SELECT * FROM users WHERE username = ?`, [requestedUsername], (err, user) => {
         if (!user) return res.redirect('/login');
 
-        db.get(`SELECT * FROM links WHERE link = ? AND username = ? AND date = ?`, [link, requestedUsername, shiftDate], (err, existingLink) => {
-            if (existingLink) {
-                return res.redirect(`/agent/${requestedUsername}?error=` + encodeURIComponent('Duplicate Link Alert: You have already submitted this link!'));
-            }
-
-            db.run(`INSERT INTO links (username, full_name, link, date) VALUES (?, ?, ?, ?)`, 
+        const doInsert = () => {
+            db.run(`INSERT INTO links (username, full_name, link, date) VALUES (?, ?, ?, ?)`,
                 [user.username, user.full_name, link, shiftDate], (err) => {
                 res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Link successfully logged!'));
             });
+        };
+
+        // Agent chose "Submit Anyway" on the duplicate warning page
+        if (force) return doInsert();
+
+        db.get(`SELECT * FROM links WHERE link = ? AND username = ? AND date = ?`, [link, requestedUsername, shiftDate], (err, existingLink) => {
+            if (existingLink) {
+                // Warn instead of blocking — the agent decides whether to submit anyway
+                return res.render('duplicate-confirm', { username: requestedUsername, link: link });
+            }
+            doInsert();
         });
     });
 });
