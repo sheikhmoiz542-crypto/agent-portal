@@ -255,7 +255,7 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
                 const userLinksCount = row ? row.count : 0;
 
                 db.all(`SELECT full_name, COUNT(*) as count FROM links WHERE date = ? GROUP BY username ORDER BY count DESC`, [shiftDate], (err, leaderboard) => {
-                    db.all(`SELECT link FROM links WHERE username = ? AND date = ? ORDER BY id DESC`, [user.username, shiftDate], (err, recentLinks) => {
+                    db.all(`SELECT id, link FROM links WHERE username = ? AND date = ? ORDER BY id DESC`, [user.username, shiftDate], (err, recentLinks) => {
                         db.get(`SELECT value FROM meta WHERE key = ?`, [`recovery_code_${requestedUsername}`], (err, rcRow) => {
                         const ownPage = loggedRole === 'agent' && loggedUser === requestedUsername;
                         const recoveryCode = ownPage && rcRow && rcRow.value ? rcRow.value : null;
@@ -310,6 +310,32 @@ app.post('/submit-link/:username', blockAgentOnMobile, (req, res) => {
                 res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Link successfully logged!'));
             });
         });
+    });
+});
+
+// Live duplicate check for the agent link form (same agent, current shift)
+app.get('/api/check-duplicate', requireLogin, blockAgentOnMobile, (req, res) => {
+    const { user: loggedUser, role: loggedRole } = getAuth(req);
+    if (loggedRole !== 'agent') return res.json({ duplicate: false });
+    const link = req.query.link || '';
+    if (!link) return res.json({ duplicate: false });
+    const shiftDate = getShiftDate();
+    db.get(`SELECT id FROM links WHERE link = ? AND username = ? AND date = ?`, [link, loggedUser, shiftDate], (err, row) => {
+        res.json({ duplicate: !!row });
+    });
+});
+
+// Delete one of the agent's own links (e.g. wrongly entered)
+app.post('/delete-link/:username', blockAgentOnMobile, (req, res) => {
+    const requestedUsername = req.params.username;
+    const { user: loggedUser } = getAuth(req);
+    if (!loggedUser || loggedUser !== requestedUsername) {
+        return res.redirect('/login');
+    }
+    const linkId = parseInt(req.body.link_id);
+    if (!linkId) return res.redirect(`/agent/${requestedUsername}`);
+    db.run(`DELETE FROM links WHERE id = ? AND username = ?`, [linkId, requestedUsername], () => {
+        res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Link deleted.'));
     });
 });
 
