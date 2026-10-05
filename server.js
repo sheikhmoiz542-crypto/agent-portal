@@ -299,9 +299,9 @@ app.post('/submit-link/:username', blockAgentOnMobile, (req, res) => {
     db.get(`SELECT * FROM users WHERE username = ?`, [requestedUsername], (err, user) => {
         if (!user) return res.redirect('/login');
 
-        db.get(`SELECT * FROM links WHERE link = ?`, [link], (err, existingLink) => {
+        db.get(`SELECT * FROM links WHERE link = ? AND username = ? AND date = ?`, [link, requestedUsername, shiftDate], (err, existingLink) => {
             if (existingLink) {
-                return res.redirect(`/agent/${requestedUsername}?error=` + encodeURIComponent('Duplicate Link Alert: This link has already been submitted!'));
+                return res.redirect(`/agent/${requestedUsername}?error=` + encodeURIComponent('Duplicate Link Alert: You have already submitted this link!'));
             }
 
             db.run(`INSERT INTO links (username, full_name, link, date) VALUES (?, ?, ?, ?)`, 
