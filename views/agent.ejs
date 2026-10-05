@@ -34,9 +34,28 @@
             <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
                 <h2 class="text-lg font-semibold mb-4 text-indigo-300">Submit Work Link</h2>
                 <form action="/submit-link/<%= username %>" method="POST" class="flex gap-3">
-                    <input type="url" name="link" placeholder="Paste your link here..." required class="flex-1 bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                    <input type="url" id="linkInput" name="link" placeholder="Paste your link here..." required autocomplete="off" class="flex-1 bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
                     <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 px-6 py-2 rounded font-semibold transition">Submit</button>
                 </form>
+                <div id="dupNote" class="hidden mt-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-600/30 rounded px-3 py-2">Note: you've already submitted this link in the current shift — you can still submit it again.</div>
+                <script>
+                (function() {
+                    var input = document.getElementById('linkInput');
+                    var note = document.getElementById('dupNote');
+                    if (!input || !note) return;
+                    var t = null;
+                    input.addEventListener('input', function() {
+                        clearTimeout(t);
+                        if (!input.value.trim()) { note.classList.add('hidden'); return; }
+                        t = setTimeout(function() {
+                            fetch('/api/check-duplicate?link=' + encodeURIComponent(input.value))
+                                .then(function(r) { return r.json(); })
+                                .then(function(d) { note.classList.toggle('hidden', !d.duplicate); })
+                                .catch(function() { note.classList.add('hidden'); });
+                        }, 400);
+                    });
+                })();
+                </script>
                 <div class="mt-4 text-sm text-slate-400">Total Links Logged Today (Shift Reset at 12:00 PM): <span class="font-bold text-white text-lg"><%= userLinksCount %></span></div>
             </div>
 
@@ -110,8 +129,12 @@
                         <p class="text-sm text-slate-500">No links submitted yet today.</p>
                     <% } else { %>
                         <% recentLinks.forEach(item => { %>
-                            <div class="bg-slate-900 p-2 rounded text-sm truncate border border-slate-750">
-                                <a href="<%= item.link %>" target="_blank" class="text-indigo-400 hover:underline"><%= item.link %></a>
+                            <div class="bg-slate-900 p-2 rounded text-sm border border-slate-750 flex items-center gap-2">
+                                <a href="<%= item.link %>" target="_blank" class="text-indigo-400 hover:underline truncate flex-1 min-w-0"><%= item.link %></a>
+                                <form action="/delete-link/<%= username %>" method="POST" onsubmit="return confirm('Delete this link?');" class="shrink-0">
+                                    <input type="hidden" name="link_id" value="<%= item.id %>">
+                                    <button type="submit" title="Delete link" class="text-slate-500 hover:text-red-400 font-bold px-1 leading-none text-base">&times;</button>
+                                </form>
                             </div>
                         <% }) %>
                     <% } %>
