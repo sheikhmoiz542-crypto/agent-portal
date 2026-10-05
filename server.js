@@ -149,6 +149,19 @@ function requireOwner(req, res, next) {
     return res.redirect('/login');
 }
 
+// Agents may only use the portal from a desktop/laptop ("system").
+// Managers and owners are exempt from this rule.
+function isMobileUA(ua) {
+    return /mobi|android|iphone|ipod|ipad|tablet|blackberry|iemobile|opera mini|windows phone/i.test(ua || '');
+}
+function blockAgentOnMobile(req, res, next) {
+    const { role } = getAuth(req);
+    if (role === 'agent' && isMobileUA(req.get('User-Agent'))) {
+        return res.status(403).render('desktop-only');
+    }
+    next();
+}
+
 // One-time-style account recovery code for the Owner (shown on the owner
 // dashboard; usable on the "Forgot password?" page if the owner is locked out).
 // 12 chars from an unambiguous alphabet: ~60 bits of entropy.
@@ -190,6 +203,10 @@ app.post('/login', (req, res) => {
             return res.render('login', { error: 'Invalid username or password' });
         }
 
+        if (user.role === 'agent' && isMobileUA(req.get('User-Agent'))) {
+            return res.render('login', { error: 'The agent portal is for desktop/laptop use only. Please log in from a computer.' });
+        }
+
         if (!isHash) {
             // Transparent migration: upgrade this plaintext password to a bcrypt hash
             db.run(`UPDATE users SET password = ? WHERE id = ?`, [bcrypt.hashSync(password, 10), user.id]);
@@ -212,7 +229,7 @@ app.get('/logout', (req, res) => {
     res.redirect('/login');
 });
 
-app.get('/agent/:username', (req, res) => {
+app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
     const requestedUsername = req.params.username;
     const { user: loggedUser, role: loggedRole } = getAuth(req);
 
@@ -268,7 +285,7 @@ app.get('/agent/:username', (req, res) => {
     });
 });
 
-app.post('/submit-link/:username', (req, res) => {
+app.post('/submit-link/:username', blockAgentOnMobile, (req, res) => {
     const requestedUsername = req.params.username;
     const { user: loggedUser } = getAuth(req);
 
@@ -295,7 +312,7 @@ app.post('/submit-link/:username', (req, res) => {
     });
 });
 
-app.post('/toggle-break/:username', (req, res) => {
+app.post('/toggle-break/:username', blockAgentOnMobile, (req, res) => {
     const requestedUsername = req.params.username;
     const { user: loggedUser, role: loggedRole } = getAuth(req);
 
@@ -562,7 +579,7 @@ app.post('/delete-manager', requireOwner, (req, res) => {
 // --- Generate Recovery Code (any logged-in user; per-user code) ---
 // Shown on the user's own dashboard. If they ever forget their password,
 // this code unlocks the "Forgot password?" page — no email needed.
-app.post('/generate-recovery-code', requireLogin, (req, res) => {
+app.post('/generate-recovery-code', requireLogin, blockAgentOnMobile, (req, res) => {
     const { user: loggedUser, role: loggedRole } = getAuth(req);
     const back = loggedRole === 'agent' ? `/agent/${loggedUser}` : '/manager';
     const code = generateRecoveryCode();
@@ -713,7 +730,7 @@ app.post('/reset-agent-password', requireManager, (req, res) => {
 });
 
 // --- Change Password (self-service, any logged-in user) ---
-app.post('/change-password', requireLogin, (req, res) => {
+app.post('/change-password', requireLogin, blockAgentOnMobile, (req, res) => {
     const { user: loggedUser, role: loggedRole } = getAuth(req);
     const back = loggedRole === 'agent' ? `/agent/${loggedUser}` : '/manager';
 
