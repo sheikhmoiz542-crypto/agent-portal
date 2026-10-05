@@ -110,6 +110,9 @@ db.serialize(() => {
         link TEXT,
         date TEXT
     )`);
+    // Migration: exact submission time, used for the agent-shift duplicate check.
+    // Runs on every boot; the error is ignored when the column already exists.
+    db.run(`ALTER TABLE links ADD COLUMN submitted_at INTEGER`, () => {});
 
     db.run(`CREATE TABLE IF NOT EXISTS meta (
         key TEXT PRIMARY KEY,
@@ -182,6 +185,32 @@ function getShiftDate() {
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+}
+
+// Agent's own shift: timestamp (ms) of when the agent's current shift started,
+// derived from their schedule (e.g. "17:00 - 02:00"). "Current shift" means the
+// most recently started shift. Returns null when the schedule is OFF or
+// unparseable — callers then fall back to the system shift date.
+function getAgentShiftStartMs(user, now) {
+    const keys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const parseStart = (sched) => {
+        const m = typeof sched === 'string' && sched.match(/(\d{1,2}):(\d{2})/);
+        return m ? { h: parseInt(m[1], 10), m: parseInt(m[2], 10) } : null;
+    };
+    const atTime = (d, t) => {
+        const x = new Date(d);
+        x.setHours(t.h, t.m, 0, 0);
+        return x.getTime();
+    };
+    const todayStart = parseStart(user[keys[now.getDay()]]);
+    if (todayStart && now.getTime() >= atTime(now, todayStart)) {
+        return atTime(now, todayStart);
+    }
+    const y = new Date(now);
+    y.setDate(y.getDate() - 1);
+    const yStart = parseStart(user[keys[y.getDay()]]);
+    if (yStart) return atTime(y, yStart);
+    return null;
 }
 
 app.get('/login', (req, res) => {
@@ -299,8 +328,8 @@ app.post('/submit-link/:username', blockAgentOnMobile, (req, res) => {
     db.get(`SELECT * FROM users WHERE username = ?`, [requestedUsername], (err, user) => {
         if (!user) return res.redirect('/login');
 
-        db.run(`INSERT INTO links (username, full_name, link, date) VALUES (?, ?, ?, ?)`,
-            [user.username, user.full_name, link, shiftDate], (err) => {
+        db.run(`INSERT INTO links (username, full_name, link, date, submitted_at) VALUES (?, ?, ?, ?, ?)`,
+            [user.username, user.full_name, link, shiftDate, Date.now()], (err) => {
             res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Link successfully logged!'));
         });
     });
@@ -312,9 +341,21 @@ app.get('/api/check-duplicate', requireLogin, blockAgentOnMobile, (req, res) => 
     if (loggedRole !== 'agent') return res.json({ duplicate: false });
     const link = req.query.link || '';
     if (!link) return res.json({ duplicate: false });
-    const shiftDate = getShiftDate();
-    db.get(`SELECT id FROM links WHERE link = ? AND username = ? AND date = ?`, [link, loggedUser, shiftDate], (err, row) => {
-        res.json({ duplicate: !!row });
+    db.get(`SELECT * FROM users WHERE username = ?`, [loggedUser], (err, user) => {
+        if (err || !user) return res.json({ duplicate: false });
+        const shiftStartMs = getAgentShiftStartMs(user, new Date());
+        if (shiftStartMs === null) {
+            // No usable schedule (OFF / unparseable): fall back to the system shift date
+            const shiftDate = getShiftDate();
+            db.get(`SELECT id FROM links WHERE link = ? AND username = ? AND date = ?`,
+                [link, loggedUser, shiftDate], (err, row) => res.json({ duplicate: !!row }));
+            return;
+        }
+        // Same agent + same link + submitted since this agent's shift started.
+        // (The IS NULL branch covers links saved before submitted_at existed.)
+        db.get(`SELECT id FROM links WHERE link = ? AND username = ?
+                AND (submitted_at >= ? OR (submitted_at IS NULL AND date = ?))`,
+            [link, loggedUser, shiftStartMs, getShiftDate()], (err, row) => res.json({ duplicate: !!row }));
     });
 });
 
