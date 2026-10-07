@@ -60,15 +60,22 @@
             <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
                 <div class="flex items-center justify-between mb-1">
                     <h2 class="text-lg font-semibold text-indigo-300">Take a Break</h2>
-                    <span class="text-xs text-slate-500">60 mins total / day</span>
+                    <% const totalBreakRem = b1Rem + b2Rem + b3Rem; %>
+                    <span class="text-xs text-slate-500"><span class="font-bold text-slate-200"><%= totalBreakRem %></span> / 60 min left</span>
                 </div>
-                <p class="text-xs text-slate-500 mb-4">Choose one break, then start it. The timer keeps running even if you close this page.</p>
+                <div class="h-1.5 bg-slate-900 rounded-full overflow-hidden mb-3" title="Overall break time left this shift">
+                    <div class="h-full rounded-full <%= totalBreakRem >= 30 ? 'bg-emerald-500' : (totalBreakRem >= 10 ? 'bg-amber-500' : 'bg-red-500') %>" style="width: <%= Math.round(totalBreakRem / 60 * 100) %>%"></div>
+                </div>
+                <p class="text-xs text-slate-500 mb-4">Choose one break, then start it. The timer keeps running even if you close this page. Breaks refresh every shift.</p>
+                <% if (breaknotice) { %>
+                    <div class="bg-amber-500/20 border border-amber-500 text-amber-300 p-3 rounded text-sm mb-4"><%= breaknotice %></div>
+                <% } %>
 
                 <% if (breakStatus !== 'off') { %>
                     <div class="bg-emerald-500/10 border border-emerald-500/50 p-4 rounded-lg">
                         <div class="flex justify-between items-center mb-3">
                             <div>
-                                <div class="text-[11px] text-emerald-300/70 uppercase tracking-wider">On break now</div>
+                                <div id="breakStateLabel" class="text-[11px] text-emerald-300/70 uppercase tracking-wider">On break now</div>
                                 <div class="font-bold text-emerald-300"><%= breakStatus === 'break1' ? 'Break 1 · 30 min' : (breakStatus === 'break2' ? 'Break 2 · 15 min' : 'Break 3 · 15 min') %></div>
                             </div>
                             <div id="countdown" class="text-2xl font-bold text-emerald-400 tabular-nums">--:--</div>
@@ -284,8 +291,16 @@
             const elapsedSecs = Math.floor((Date.now() - startTime) / 1000);
             const remainingSecs = totalDurationSecs - elapsedSecs;
 
+            const cd = document.getElementById('countdown');
             if (remainingSecs <= 0) {
-                document.getElementById('countdown').innerText = "Time Expired!";
+                const overSecs = -remainingSecs;
+                const overMins = Math.floor(overSecs / 60);
+                const overRemSecs = overSecs % 60;
+                cd.innerText = `+${overMins}m ${overRemSecs < 10 ? '0' : ''}${overRemSecs}s over`;
+                cd.classList.remove('text-emerald-400');
+                cd.classList.add('text-red-400');
+                const lbl = document.getElementById('breakStateLabel');
+                if (lbl) { lbl.innerText = 'Over break time'; lbl.classList.remove('text-emerald-300/70'); lbl.classList.add('text-red-400/80'); }
                 return;
             }
 
