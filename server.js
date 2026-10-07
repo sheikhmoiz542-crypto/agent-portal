@@ -187,6 +187,39 @@ function getShiftDate() {
     return `${year}-${month}-${day}`;
 }
 
+// Shift key for the break reset: changes when the agent's shift ENDS (not only
+// when the next one starts), so breaks refresh even in the gap between shifts.
+// Returns 'shift:<startMs>' while inside a shift, 'ended:<endMs>' after it ended,
+// and 'sys:<date>' when the schedule is OFF/unparseable (falls back to system shift).
+function getAgentShiftKey(user, now) {
+    const keys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const parseShift = (sched) => {
+        if (typeof sched !== 'string') return null;
+        const m = sched.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+        if (!m) return null;
+        return { sh: parseInt(m[1], 10), sm: parseInt(m[2], 10), eh: parseInt(m[3], 10), em: parseInt(m[4], 10) };
+    };
+    const atTime = (d, h, mi) => {
+        const x = new Date(d);
+        x.setHours(h, mi, 0, 0);
+        return x.getTime();
+    };
+    const nowMs = now.getTime();
+    for (const offset of [0, 1]) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - offset);
+        const t = parseShift(user[keys[d.getDay()]]);
+        if (!t) continue;
+        const S = atTime(d, t.sh, t.sm);
+        let E = atTime(d, t.eh, t.em);
+        if (E <= S) E += 24 * 3600 * 1000; // overnight shift ends next day
+        if (S > nowMs) continue; // today's shift hasn't started yet
+        if (nowMs <= E) return 'shift:' + S;
+        return 'ended:' + E;
+    }
+    return 'sys:' + getShiftDate();
+}
+
 // Agent's own shift: timestamp (ms) of when the agent's current shift started,
 // derived from their schedule (e.g. "17:00 - 02:00"). "Current shift" means the
 // most recently started shift. Returns null when the schedule is OFF or
@@ -276,7 +309,7 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
         // Breaks reset with the agent's own shift. break_shift_<username> records which
         // shift the break cookies belong to; a new shift means fresh 30/15/15 breaks,
         // whether the browser stayed open or was closed.
-        const breakShiftKey = String(getAgentShiftStartMs(user, new Date()) || ('sys:' + shiftDate));
+        const breakShiftKey = getAgentShiftKey(user, new Date());
         const ownBreaks = loggedRole === 'agent' && loggedUser === requestedUsername;
         let b1Rem, b2Rem, b3Rem, breakStatus, breakStartTime;
         if (ownBreaks && req.cookies[`break_shift_${user.username}`] !== breakShiftKey) {
