@@ -220,6 +220,55 @@ function getAgentShiftKey(user, now) {
     return 'sys:' + getShiftDate();
 }
 
+// Shift progress for the portal rings: which shift matters right now and how far
+// along it is. Returns { state, startMs, endMs, startLabel, endLabel } where state
+// is 'in' (shift running), 'ended' (shift finished), 'upcoming' (today's shift
+// hasn't started yet) or 'off' (no shift today/yesterday).
+function getShiftProgressInfo(user, now) {
+    const keys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const parseShift = (sched) => {
+        if (typeof sched !== 'string') return null;
+        const m = sched.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+        if (!m) return null;
+        return { sh: parseInt(m[1], 10), sm: parseInt(m[2], 10), eh: parseInt(m[3], 10), em: parseInt(m[4], 10) };
+    };
+    const atTime = (d, h, mi) => {
+        const x = new Date(d);
+        x.setHours(h, mi, 0, 0);
+        return x.getTime();
+    };
+    const fmt = (ms) => {
+        const d = new Date(ms);
+        return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    };
+    const nowMs = now.getTime();
+    const windowOf = (d) => {
+        const t = parseShift(user[keys[d.getDay()]]);
+        if (!t) return null;
+        const S = atTime(d, t.sh, t.sm);
+        let E = atTime(d, t.eh, t.em);
+        if (E <= S) E += 24 * 3600 * 1000;
+        return { S, E };
+    };
+    const info = (S, E) => ({ startMs: S, endMs: E, startLabel: fmt(S), endLabel: fmt(E) });
+    const yest = new Date(now);
+    yest.setDate(yest.getDate() - 1);
+    const yw = windowOf(yest);
+    const today = new Date(now);
+    const tw = windowOf(today);
+    // Overnight first: yesterday's shift may still be running past midnight
+    if (yw && nowMs <= yw.E && (!tw || nowMs < tw.S)) {
+        return { state: 'in', ...info(yw.S, yw.E) };
+    }
+    if (tw) {
+        if (nowMs < tw.S) return { state: 'upcoming', ...info(tw.S, tw.E) };
+        if (nowMs <= tw.E) return { state: 'in', ...info(tw.S, tw.E) };
+        return { state: 'ended', ...info(tw.S, tw.E) };
+    }
+    if (yw) return { state: 'ended', ...info(yw.S, yw.E) };
+    return { state: 'off' };
+}
+
 // Agent's own shift: timestamp (ms) of when the agent's current shift started,
 // derived from their schedule (e.g. "17:00 - 02:00"). "Current shift" means the
 // most recently started shift. Returns null when the schedule is OFF or
@@ -359,6 +408,7 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
                             success: req.query.success || null,
                             breaknotice: req.query.breaknotice || null,
                             breakExceed: breakExceed,
+                            shiftInfo: getShiftProgressInfo(user, new Date()),
                             recentLinks: recentLinks || [],
                             recoveryCode: recoveryCode
                         });
