@@ -355,6 +355,7 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
                             b3Rem: b3Rem,
                             error: req.query.error || null,
                             success: req.query.success || null,
+                            breaknotice: req.query.breaknotice || null,
                             recentLinks: recentLinks || [],
                             recoveryCode: recoveryCode
                         });
@@ -443,10 +444,18 @@ app.post('/toggle-break/:username', blockAgentOnMobile, (req, res) => {
 
         let remKey = currentStatus === 'break1' ? `b1_rem_${requestedUsername}` : (currentStatus === 'break2' ? `b2_rem_${requestedUsername}` : `b3_rem_${requestedUsername}`);
         let currentRem = req.cookies[remKey] !== undefined ? parseInt(req.cookies[remKey]) : (currentStatus === 'break1' ? 30 : 15);
-        
+        const breakTotal = currentStatus === 'break1' ? 30 : 15;
+        const breakLabel = currentStatus === 'break1' ? 'Break 1' : (currentStatus === 'break2' ? 'Break 2' : 'Break 3');
+        const exceededMins = Math.max(0, elapsedMins - currentRem);
+
         currentRem = Math.max(0, currentRem - elapsedMins);
         res.cookie(remKey, currentRem, { httpOnly: true });
         res.clearCookie(`break_start_${requestedUsername}`);
+
+        if (exceededMins > 0) {
+            res.cookie(`break_${requestedUsername}`, 'off', { httpOnly: true });
+            return res.redirect(`/agent/${requestedUsername}?breaknotice=` + encodeURIComponent(`Break ended — you went ${exceededMins} min over your ${breakLabel} (${breakTotal} min).`));
+        }
     }
 
     if (newStatus !== 'off') {
