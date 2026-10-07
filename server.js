@@ -311,15 +311,16 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
         // whether the browser stayed open or was closed.
         const breakShiftKey = getAgentShiftKey(user, new Date());
         const ownBreaks = loggedRole === 'agent' && loggedUser === requestedUsername;
-        let b1Rem, b2Rem, b3Rem, breakStatus, breakStartTime;
+        let b1Rem, b2Rem, b3Rem, breakStatus, breakStartTime, breakExceed;
         if (ownBreaks && req.cookies[`break_shift_${user.username}`] !== breakShiftKey) {
             b1Rem = 30; b2Rem = 15; b3Rem = 15;
-            breakStatus = 'off'; breakStartTime = null;
+            breakStatus = 'off'; breakStartTime = null; breakExceed = 0;
             res.clearCookie(`break_${user.username}`);
             res.clearCookie(`break_start_${user.username}`);
             res.clearCookie(`b1_rem_${user.username}`);
             res.clearCookie(`b2_rem_${user.username}`);
             res.clearCookie(`b3_rem_${user.username}`);
+            res.clearCookie(`exceed_${user.username}`);
             res.cookie(`break_shift_${user.username}`, breakShiftKey, { httpOnly: true });
         } else {
             b1Rem = req.cookies[`b1_rem_${user.username}`] !== undefined ? parseInt(req.cookies[`b1_rem_${user.username}`]) : 30;
@@ -327,6 +328,7 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
             b3Rem = req.cookies[`b3_rem_${user.username}`] !== undefined ? parseInt(req.cookies[`b3_rem_${user.username}`]) : 15;
             breakStatus = req.cookies[`break_${user.username}`] || 'off';
             breakStartTime = req.cookies[`break_start_${user.username}`] || null;
+            breakExceed = req.cookies[`exceed_${user.username}`] !== undefined ? parseInt(req.cookies[`exceed_${user.username}`]) : 0;
         }
 
         db.get(`SELECT value FROM meta WHERE key = 'schedule_range'`, (err, metaRow) => {
@@ -356,6 +358,7 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
                             error: req.query.error || null,
                             success: req.query.success || null,
                             breaknotice: req.query.breaknotice || null,
+                            breakExceed: breakExceed,
                             recentLinks: recentLinks || [],
                             recoveryCode: recoveryCode
                         });
@@ -453,8 +456,10 @@ app.post('/toggle-break/:username', blockAgentOnMobile, (req, res) => {
         res.clearCookie(`break_start_${requestedUsername}`);
 
         if (exceededMins > 0) {
+            const prevExceed = req.cookies[`exceed_${requestedUsername}`] !== undefined ? parseInt(req.cookies[`exceed_${requestedUsername}`]) : 0;
+            res.cookie(`exceed_${requestedUsername}`, prevExceed + exceededMins, { httpOnly: true });
             res.cookie(`break_${requestedUsername}`, 'off', { httpOnly: true });
-            return res.redirect(`/agent/${requestedUsername}?breaknotice=` + encodeURIComponent(`Break ended — you went ${exceededMins} min over your ${breakLabel} (${breakTotal} min).`));
+            return res.redirect(`/agent/${requestedUsername}?breaknotice=` + encodeURIComponent(`Break ended — you went ${exceededMins} min over your ${breakLabel} (${breakTotal} min). ${exceededMins} min deducted from overall break time.`));
         }
     }
 
