@@ -1,3 +1,4 @@
+process.env.TZ = 'Asia/Karachi'; // Portal timezone: Pakistan Time (PKT, UTC+5)
 const express = require('express');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
