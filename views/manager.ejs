@@ -67,6 +67,47 @@
             </div>
         </div>
 
+        <!-- Live Break Tracking -->
+        <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 shadow-lg">
+            <h2 class="text-lg font-semibold mb-4 text-indigo-300">Live Break Tracking <span class="ml-2 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-600/20 text-emerald-300 align-middle"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Live</span></h2>
+            <% const fmtT = (ms) => { const d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }; %>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <h3 class="text-sm font-semibold text-slate-400 mb-2">Currently on break</h3>
+                    <div id="liveBreaksList" class="space-y-2">
+                        <% if (liveBreaks.length === 0) { %>
+                            <p class="text-sm text-slate-500">No one on break right now.</p>
+                        <% } else { %>
+                            <% liveBreaks.forEach(b => { %>
+                                <div class="flex justify-between items-center bg-slate-900 p-3 rounded border border-slate-750">
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-bold text-slate-100 truncate"><%= b.full_name %></div>
+                                        <div class="text-xs text-slate-500">Break <%= b.break_num %> (<%= b.allowance_min %> min) &mdash; started <%= fmtT(b.started_at) %></div>
+                                    </div>
+                                    <span class="text-amber-300 text-xs font-bold shrink-0 ml-2" data-breakstart="<%= b.started_at %>"></span>
+                                </div>
+                            <% }) %>
+                        <% } %>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-slate-400 mb-2">Today's break usage</h3>
+                    <div id="breakTodayList" class="space-y-2">
+                        <% if (breakToday.length === 0) { %>
+                            <p class="text-sm text-slate-500">No breaks taken today.</p>
+                        <% } else { %>
+                            <% breakToday.forEach(t => { %>
+                                <div class="flex justify-between items-center bg-slate-900 p-3 rounded border border-slate-750">
+                                    <span class="text-sm font-medium text-slate-200 truncate"><%= t.full_name %></span>
+                                    <span class="text-xs text-slate-400 shrink-0 ml-2"><%= t.breaks_taken %> breaks &middot; <%= t.minutes_used %> min used<%= t.minutes_over > 0 ? ' · ' + t.minutes_over + ' min over' : '' %></span>
+                                </div>
+                            <% }) %>
+                        <% } %>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Set Schedule Date Range Section -->
         <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 shadow-lg">
             <h2 class="text-lg font-semibold mb-4 text-indigo-300">Set Active Schedule Date Range (For Slack/WhatsApp Previews)</h2>
@@ -454,11 +495,80 @@
                             tbody.prepend(tr);
                         });
                         if (typeof d.total === 'number' && countEl) countEl.textContent = d.total;
+                        renderBreaks(d.breaksLive || [], d.breaksToday || []);
                         lastOk = Date.now();
                     })
                     .catch(function () { /* keep polling quietly */ });
             }
+            function fmtT(ms) {
+                var d = new Date(ms);
+                return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+            }
+            function renderBreaks(live, today) {
+                var liveList = document.getElementById('liveBreaksList');
+                var todayList = document.getElementById('breakTodayList');
+                if (liveList) {
+                    liveList.innerHTML = '';
+                    if (live.length === 0) {
+                        var p0 = document.createElement('p');
+                        p0.className = 'text-sm text-slate-500';
+                        p0.textContent = 'No one on break right now.';
+                        liveList.appendChild(p0);
+                    } else {
+                        live.forEach(function (b) {
+                            var div = document.createElement('div');
+                            div.className = 'flex justify-between items-center bg-slate-900 p-3 rounded border border-slate-750';
+                            var info = document.createElement('div');
+                            info.className = 'min-w-0';
+                            var nm = document.createElement('div');
+                            nm.className = 'text-sm font-bold text-slate-100 truncate';
+                            nm.textContent = b.full_name || b.username;
+                            var sub = document.createElement('div');
+                            sub.className = 'text-xs text-slate-500';
+                            sub.textContent = 'Break ' + b.break_num + ' (' + b.allowance_min + ' min) — started ' + fmtT(b.started_at);
+                            info.appendChild(nm); info.appendChild(sub);
+                            var el = document.createElement('span');
+                            el.className = 'text-amber-300 text-xs font-bold shrink-0 ml-2';
+                            el.setAttribute('data-breakstart', b.started_at);
+                            div.appendChild(info); div.appendChild(el);
+                            liveList.appendChild(div);
+                        });
+                    }
+                }
+                if (todayList) {
+                    todayList.innerHTML = '';
+                    if (today.length === 0) {
+                        var p1 = document.createElement('p');
+                        p1.className = 'text-sm text-slate-500';
+                        p1.textContent = 'No breaks taken today.';
+                        todayList.appendChild(p1);
+                    } else {
+                        today.forEach(function (t) {
+                            var div = document.createElement('div');
+                            div.className = 'flex justify-between items-center bg-slate-900 p-3 rounded border border-slate-750';
+                            var nm = document.createElement('span');
+                            nm.className = 'text-sm font-medium text-slate-200 truncate';
+                            nm.textContent = t.full_name || t.username;
+                            var st = document.createElement('span');
+                            st.className = 'text-xs text-slate-400 shrink-0 ml-2';
+                            st.textContent = t.breaks_taken + ' breaks · ' + t.minutes_used + ' min used' + (t.minutes_over > 0 ? ' · ' + t.minutes_over + ' min over' : '');
+                            div.appendChild(nm); div.appendChild(st);
+                            todayList.appendChild(div);
+                        });
+                    }
+                }
+                tickBreakElapsed();
+            }
+            function tickBreakElapsed() {
+                var now = Date.now();
+                document.querySelectorAll('[data-breakstart]').forEach(function (el) {
+                    var mins = Math.max(0, Math.floor((now - parseInt(el.getAttribute('data-breakstart'), 10)) / 60000));
+                    el.textContent = mins + 'm on break';
+                });
+            }
             setInterval(tick, 10000);
+            setInterval(tickBreakElapsed, 30000);
+            tickBreakElapsed();
             setInterval(function () {
                 var s = Math.floor((Date.now() - lastOk) / 1000);
                 liveDot.title = s < 15 ? 'Live — updated just now' : 'Live — updated ' + s + 's ago';
