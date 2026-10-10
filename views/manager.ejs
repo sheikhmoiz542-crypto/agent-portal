@@ -454,10 +454,10 @@
             var countEl = document.getElementById('linksInViewCount');
             var tbody = document.getElementById('submittedLinksBody');
             if (!liveDot || !tbody) return;
-            if (window.__managerFilters.date || window.__managerFilters.agent) {
-                liveDot.style.display = 'none'; // filtered view: live updates off
-                return;
-            }
+            // The links feed is filtered, so it only stays live with no filter active.
+            // The break card is unfiltered by nature — it ALWAYS stays live.
+            var linksLive = !(window.__managerFilters.date || window.__managerFilters.agent);
+            if (!linksLive) liveDot.style.display = 'none';
             var maxId = parseInt(tbody.getAttribute('data-max-id') || '0', 10) || 0;
             var lastOk = Date.now();
             function esc(s) { return String(s == null ? '' : s); }
@@ -467,6 +467,7 @@
                     .then(function (r) { return r.json(); })
                     .then(function (d) {
                         if (!d || !d.ok) return;
+                        if (linksLive) {
                         (d.links || []).slice().reverse().forEach(function (item) {
                             if (item.id > maxId) maxId = item.id;
                             var tr = document.createElement('tr');
@@ -495,6 +496,7 @@
                             tbody.prepend(tr);
                         });
                         if (typeof d.total === 'number' && countEl) countEl.textContent = d.total;
+                        } // end linksLive
                         renderBreaks(d.breaksLive || [], d.breaksToday || []);
                         lastOk = Date.now();
                     })
@@ -566,6 +568,7 @@
                     el.textContent = mins + 'm on break';
                 });
             }
+            tick(); // first poll right away — page is live from second 0
             setInterval(tick, 10000);
             setInterval(tickBreakElapsed, 30000);
             tickBreakElapsed();
