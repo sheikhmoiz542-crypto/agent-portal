@@ -23,6 +23,8 @@
         </div>
         <div class="flex gap-2 sm:gap-3 flex-wrap">
             <a href="/manager/preview-schedule" target="_blank" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-sm font-semibold transition">Preview Team Schedule</a>
+            <button onclick="openFilterModal()" class="relative bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition">Filter Stats<% if (selectedDate || selectedAgent) { %><span class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-400 border-2 border-slate-800" title="A filter is active"></span><% } %></button>
+            <button onclick="openAddAgentModal()" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-sm font-semibold transition">+ Add Agent</button>
             <button onclick="openPwModal()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition">Change Password</button>
             <a href="/logout" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded text-sm font-semibold transition">Logout</a>
         </div>
@@ -115,59 +117,6 @@
                 <input type="text" name="schedule_range" value="<%= scheduleRange %>" placeholder="e.g. Mon 28 Sep 2026 - Sun 04 Oct 2026" required class="flex-1 bg-slate-900 border border-slate-750 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
                 <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 px-6 py-2 rounded font-semibold transition">Update Range</button>
             </form>
-        </div>
-
-        <!-- Filter & Stats Section -->
-        <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 shadow-lg">
-            <h2 class="text-lg font-semibold mb-4 text-indigo-300">Filter Agent Stats by Date & Agent</h2>
-            <form action="/manager" method="GET" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                <div>
-                    <label class="block text-sm text-slate-400 mb-1">Select Date</label>
-                    <input type="date" name="date" value="<%= selectedDate %>" class="w-full bg-slate-900 border border-slate-750 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
-                </div>
-                <div>
-                    <label class="block text-sm text-slate-400 mb-1">Select Agent</label>
-                    <select name="agent" class="w-full bg-slate-900 border border-slate-750 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
-                        <option value="">All Agents</option>
-                        <% agents.forEach(agent => { %>
-                            <option value="<%= agent.username %>" <%= selectedAgent === agent.username ? 'selected' : '' %>><%= agent.full_name %></option>
-                        <% }) %>
-                    </select>
-                </div>
-                <div class="flex gap-2">
-                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded font-semibold transition">Filter</button>
-                    <a href="/manager" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-center font-semibold transition">Reset</a>
-                </div>
-            </form>
-        </div>
-
-        <!-- Add New Agent Section -->
-        <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 shadow-lg">
-            <h2 class="text-lg font-semibold mb-4 text-indigo-300">Add New Agent</h2>
-            <form action="/add-agent" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                <div>
-                    <label class="block text-sm text-slate-400 mb-1">Agent Name</label>
-                    <input type="text" name="name" required placeholder="e.g. Ali Khan" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
-                </div>
-                <div>
-                    <label class="block text-sm text-slate-400 mb-1">Email Address</label>
-                    <input type="email" name="email" required placeholder="e.g. ali@company.com" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
-                </div>
-                <div>
-                    <label class="block text-sm text-slate-400 mb-1">Password</label>
-                    <div class="relative">
-                        <input type="password" name="password" required minlength="4" placeholder="Min. 4 characters" class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
-                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
-                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
-                        </button>
-                    </div>
-                </div>
-                <div>
-                    <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-400 px-6 py-2 rounded font-semibold text-white transition">Add Agent</button>
-                </div>
-            </form>
-            <p class="text-xs text-slate-500 mt-3">The agent's login username is auto-generated from the email address (e.g. ali.khan@company.com → alikhan). New agents start with all days OFF — set their weekly schedule below.</p>
         </div>
 
         <% if (isOwner) { %>
@@ -376,6 +325,73 @@
         </div>
     </div>
 
+    <!-- Filter Stats Modal -->
+    <div id="filterModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl w-full max-w-md p-4 sm:p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-indigo-300">Filter Agent Stats</h2>
+                <button type="button" onclick="closeFilterModal()" class="text-slate-500 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            <form action="/manager" method="GET" class="space-y-4">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Select Date</label>
+                    <input type="date" name="date" value="<%= selectedDate %>" class="w-full bg-slate-900 border border-slate-750 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Select Agent</label>
+                    <select name="agent" class="w-full bg-slate-900 border border-slate-750 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                        <option value="">All Agents</option>
+                        <% agents.forEach(agent => { %>
+                            <option value="<%= agent.username %>" <%= selectedAgent === agent.username ? 'selected' : '' %>><%= agent.full_name %></option>
+                        <% }) %>
+                    </select>
+                </div>
+                <div class="flex gap-2">
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded font-semibold transition">Apply Filter</button>
+                    <% if (selectedDate || selectedAgent) { %>
+                    <a href="/manager" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-center font-semibold transition">Clear</a>
+                    <% } %>
+                    <button type="button" onclick="closeFilterModal()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded font-semibold transition">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Agent Modal -->
+    <div id="addAgentModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl w-full max-w-md p-4 sm:p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-emerald-300">Add New Agent</h2>
+                <button type="button" onclick="closeAddAgentModal()" class="text-slate-500 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            <form action="/add-agent" method="POST" class="space-y-4">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Agent Name</label>
+                    <input type="text" name="name" required placeholder="e.g. Ali Khan" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Email Address</label>
+                    <input type="email" name="email" required placeholder="e.g. ali@company.com" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Password</label>
+                    <div class="relative">
+                        <input type="password" name="password" required minlength="4" placeholder="Min. 4 characters" class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
+                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-500">The agent's login username is auto-generated from the email address (e.g. ali.khan@company.com &rarr; alikhan). New agents start with all days OFF &mdash; set their weekly schedule below.</p>
+                <div class="flex gap-2">
+                    <button type="submit" class="flex-1 bg-emerald-500 hover:bg-emerald-400 py-2 rounded font-semibold text-white transition">Add Agent</button>
+                    <button type="button" onclick="closeAddAgentModal()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded font-semibold transition">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Change Password Modal -->
     <div id="pwModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
         <div class="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl w-full max-w-md p-4 sm:p-6">
@@ -425,8 +441,15 @@
     <script>
         function openPwModal() { document.getElementById('pwModal').classList.remove('hidden'); }
         function closePwModal() { document.getElementById('pwModal').classList.add('hidden'); }
-        document.getElementById('pwModal').addEventListener('click', function(e) { if (e.target === this) closePwModal(); });
-        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closePwModal(); });
+        function openFilterModal() { document.getElementById('filterModal').classList.remove('hidden'); }
+        function closeFilterModal() { document.getElementById('filterModal').classList.add('hidden'); }
+        function openAddAgentModal() { document.getElementById('addAgentModal').classList.remove('hidden'); }
+        function closeAddAgentModal() { document.getElementById('addAgentModal').classList.add('hidden'); }
+        function closeAllModals() { closePwModal(); closeFilterModal(); closeAddAgentModal(); }
+        ['pwModal', 'filterModal', 'addAgentModal'].forEach(function (id) {
+            document.getElementById(id).addEventListener('click', function(e) { if (e.target === this) this.classList.add('hidden'); });
+        });
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeAllModals(); });
 
         // Show/hide password toggle for the eye icons
         function togglePw(btn) {
