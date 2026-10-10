@@ -159,6 +159,7 @@ db.serialize(() => {
 
 app.set('view engine', 'ejs');
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
 app.use(cookieParser(COOKIE_SECRET));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -913,6 +914,32 @@ app.post('/update-week-schedule', requireManager, (req, res) => {
                     }
                 });
         });
+    });
+});
+
+// Save ONE agent's schedule for one week via AJAX (no page reload) — for quick
+// single-agent changes like shift swaps. Body (JSON): username, week, mon..sun.
+app.post('/api/save-agent-schedule', requireManager, (req, res) => {
+    const username = (req.body.username || '').trim();
+    const weekStart = (req.body.week || '').trim();
+    if (!username || !/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
+        return res.status(400).json({ ok: false, error: 'bad input' });
+    }
+    db.get(`SELECT username FROM users WHERE username = ? AND role = 'agent'`, [username], (err, row) => {
+        if (err || !row) return res.status(400).json({ ok: false, error: 'unknown agent' });
+        const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+            .map(k => ((req.body[k] || '').toString() || '').trim().slice(0, 100));
+        db.run(`INSERT OR REPLACE INTO schedules (username, week_start, mon, tue, wed, thu, fri, sat, sun)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [username, weekStart, ...days], (err) => {
+                if (err) return res.status(500).json({ ok: false });
+                if (weekStart === getWeekStart(new Date())) {
+                    db.run(`UPDATE users SET mon = ?, tue = ?, wed = ?, thu = ?, fri = ?, sat = ?, sun = ? WHERE username = ?`,
+                        [...days, username], () => res.json({ ok: true }));
+                } else {
+                    res.json({ ok: true });
+                }
+            });
     });
 });
 
