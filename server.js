@@ -114,6 +114,9 @@ db.serialize(() => {
     // Migration: exact submission time, used for the agent-shift duplicate check.
     // Runs on every boot; the error is ignored when the column already exists.
     db.run(`ALTER TABLE links ADD COLUMN submitted_at INTEGER`, () => {});
+    // Migration: follow-up flag for links logged via the Follow Up button.
+    // Runs on every boot; the error is ignored when the column already exists.
+    db.run(`ALTER TABLE links ADD COLUMN is_followup INTEGER DEFAULT 0`, () => {});
 
     db.run(`CREATE TABLE IF NOT EXISTS meta (
         key TEXT PRIMARY KEY,
@@ -384,11 +387,11 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
         db.get(`SELECT value FROM meta WHERE key = 'schedule_range'`, (err, metaRow) => {
             const scheduleRange = metaRow ? metaRow.value : 'Current Week Schedule';
 
-            db.get(`SELECT COUNT(*) as count FROM links WHERE username = ? AND date = ?`, [user.username, shiftDate], (err, row) => {
+            db.get(`SELECT COUNT(*) as count FROM links WHERE username = ? AND date = ? AND COALESCE(is_followup,0) = 0`, [user.username, shiftDate], (err, row) => {
                 const userLinksCount = row ? row.count : 0;
 
-                db.all(`SELECT full_name, COUNT(*) as count FROM links WHERE date = ? GROUP BY username ORDER BY count DESC`, [shiftDate], (err, leaderboard) => {
-                    db.all(`SELECT id, link FROM links WHERE username = ? AND date = ? ORDER BY id DESC`, [user.username, shiftDate], (err, recentLinks) => {
+                db.all(`SELECT full_name, SUM(CASE WHEN COALESCE(is_followup,0)=0 THEN 1 ELSE 0 END) as count, SUM(CASE WHEN COALESCE(is_followup,0)=1 THEN 1 ELSE 0 END) as followups FROM links WHERE date = ? GROUP BY username ORDER BY count DESC`, [shiftDate], (err, leaderboard) => {
+                    db.all(`SELECT id, link, is_followup FROM links WHERE username = ? AND date = ? ORDER BY id DESC`, [user.username, shiftDate], (err, recentLinks) => {
                         db.get(`SELECT value FROM meta WHERE key = ?`, [`recovery_code_${requestedUsername}`], (err, rcRow) => {
                         const ownPage = loggedRole === 'agent' && loggedUser === requestedUsername;
                         const recoveryCode = ownPage && rcRow && rcRow.value ? rcRow.value : null;
@@ -407,6 +410,7 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
                             b3Rem: b3Rem,
                             error: req.query.error || null,
                             success: req.query.success || null,
+                            isFollowupMsg: !!req.query.followup,
                             breaknotice: req.query.breaknotice || null,
                             breakExceed: breakExceed,
                             shiftInfo: getShiftProgressInfo(user, new Date()),
@@ -435,9 +439,33 @@ app.post('/submit-link/:username', blockAgentOnMobile, (req, res) => {
     db.get(`SELECT * FROM users WHERE username = ?`, [requestedUsername], (err, user) => {
         if (!user) return res.redirect('/login');
 
-        db.run(`INSERT INTO links (username, full_name, link, date, submitted_at) VALUES (?, ?, ?, ?, ?)`,
+        db.run(`INSERT INTO links (username, full_name, link, date, submitted_at, is_followup) VALUES (?, ?, ?, ?, ?, 0)`,
             [user.username, user.full_name, link, shiftDate, Date.now()], (err) => {
             res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Link successfully logged!'));
+        });
+    });
+});
+
+// Log a follow-up link via the Follow Up button (same form, different endpoint).
+// Follow-ups are tracked separately: they don't count toward link totals and
+// skip the duplicate check (a follow-up is inherently a re-post of a link).
+app.post('/submit-followup/:username', blockAgentOnMobile, (req, res) => {
+    const requestedUsername = req.params.username;
+    const { user: loggedUser } = getAuth(req);
+
+    if (!loggedUser || loggedUser !== requestedUsername) {
+        return res.redirect('/login');
+    }
+
+    const { link } = req.body;
+    const shiftDate = getShiftDate();
+
+    db.get(`SELECT * FROM users WHERE username = ?`, [requestedUsername], (err, user) => {
+        if (!user) return res.redirect('/login');
+
+        db.run(`INSERT INTO links (username, full_name, link, date, submitted_at, is_followup) VALUES (?, ?, ?, ?, ?, 1)`,
+            [user.username, user.full_name, link, shiftDate, Date.now()], (err) => {
+            res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Follow-up logged!') + `&followup=1`);
         });
     });
 });
