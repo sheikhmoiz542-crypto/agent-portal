@@ -224,10 +224,11 @@
                     <div class="bg-slate-900 p-4 rounded-lg border border-slate-750 space-y-3">
                         <div class="flex items-center gap-3 min-w-0">
                             <div class="w-9 h-9 rounded-full bg-indigo-600/25 text-indigo-300 flex items-center justify-center font-bold text-sm shrink-0"><%= agent.full_name.charAt(0).toUpperCase() %></div>
-                            <div>
+                            <div class="min-w-0 flex-1">
                                 <div class="font-bold text-slate-100 truncate"><%= agent.full_name %> <span class="text-slate-500 font-normal text-xs">@<%= agent.username %></span></div>
                                 <% if (agent.email) { %><div class="text-xs text-slate-500 truncate"><%= agent.email %></div><% } %>
                             </div>
+                            <button type="button" onclick="saveAgentSchedule(this, '<%= agent.username %>')" title="Save only this agent's schedule (no page refresh)" class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 transition">Save</button>
                         </div>
                         <div class="grid grid-cols-2 md:grid-cols-7 gap-2 text-xs">
                             <% Object.keys(dayNames).forEach(d => { %>
@@ -460,6 +461,25 @@
         function openAddAgentModal() { document.getElementById('addAgentModal').classList.remove('hidden'); }
         function closeAddAgentModal() { document.getElementById('addAgentModal').classList.add('hidden'); }
         function closeAllModals() { closePwModal(); closeFilterModal(); closeAddAgentModal(); }
+        // Save ONE agent's schedule for the selected week via AJAX — no page
+        // reload, so other agents' unsaved edits stay untouched.
+        async function saveAgentSchedule(btn, username) {
+            var days = ['mon','tue','wed','thu','fri','sat','sun'];
+            var payload = { username: username, week: <%- JSON.stringify(selectedWeek) %> };
+            days.forEach(function (d) {
+                var el = document.querySelector('input[name="sched[' + username + '][' + d + ']"]');
+                payload[d] = el ? el.value : '';
+            });
+            var orig = btn.textContent;
+            btn.disabled = true; btn.textContent = 'Saving…';
+            try {
+                var r = await fetch('/api/save-agent-schedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                var j = await r.json();
+                if (j && j.ok) { btn.textContent = 'Saved ✓'; btn.classList.remove('bg-slate-700','hover:bg-slate-600'); btn.classList.add('bg-emerald-600'); }
+                else { btn.textContent = 'Error'; }
+            } catch (e) { btn.textContent = 'Error'; }
+            setTimeout(function () { btn.textContent = orig; btn.disabled = false; btn.classList.add('bg-slate-700','hover:bg-slate-600'); btn.classList.remove('bg-emerald-600'); }, 2000);
+        }
         // Quick range presets: last N days ending today (portal PKT date).
         function setRangePreset(n) {
             var to = new Date();
