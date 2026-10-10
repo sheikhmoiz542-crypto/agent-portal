@@ -226,8 +226,8 @@
         <!-- Right: Leaderboard & Schedule -->
         <div class="space-y-6">
             <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
-                <h2 class="text-lg font-semibold mb-4 text-indigo-300">Today's Leaderboard</h2>
-                <div class="space-y-3">
+                <h2 class="text-lg font-semibold mb-4 text-indigo-300">Today's Leaderboard <span id="lbLiveDot" class="ml-2 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-600/20 text-emerald-300 align-middle"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Live</span></h2>
+                <div class="space-y-3" id="leaderboardList">
                     <% if (leaderboard.length === 0) { %>
                         <p class="text-sm text-slate-500">No entries yet.</p>
                     <% } else { %>
@@ -393,5 +393,53 @@
         setInterval(updateTimer, 1000);
     </script>
     <% } %>
+    <script>
+        // Live leaderboard: refresh everyone's counts every 10s so new
+        // submissions appear without a page reload.
+        (function () {
+            var list = document.getElementById('leaderboardList');
+            if (!list) return;
+            function row(rank, name, links, followups) {
+                var div = document.createElement('div');
+                div.className = 'flex justify-between items-center bg-slate-900 p-3 rounded border border-slate-750';
+                var nameSpan = document.createElement('span');
+                nameSpan.className = 'text-sm font-medium';
+                nameSpan.textContent = rank + '. ' + name;
+                var boxes = document.createElement('div');
+                boxes.className = 'flex gap-2 shrink-0';
+                var b1 = document.createElement('span');
+                b1.className = 'bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded text-xs font-bold';
+                b1.textContent = links + ' links';
+                var b2 = document.createElement('span');
+                b2.className = 'bg-amber-500/30 text-amber-300 px-2.5 py-1 rounded text-xs font-bold';
+                b2.textContent = followups + ' follow-ups';
+                boxes.appendChild(b1); boxes.appendChild(b2);
+                div.appendChild(nameSpan); div.appendChild(boxes);
+                return div;
+            }
+            function tick() {
+                if (document.hidden) return;
+                fetch('/api/leaderboard-live', { credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        if (!d || !d.ok) return;
+                        list.innerHTML = '';
+                        var agents = d.agents || [];
+                        if (agents.length === 0) {
+                            var p = document.createElement('p');
+                            p.className = 'text-sm text-slate-500';
+                            p.textContent = 'No entries yet.';
+                            list.appendChild(p);
+                            return;
+                        }
+                        agents.forEach(function (a, i) {
+                            list.appendChild(row(i + 1, a.full_name || a.username, a.count || 0, a.followups || 0));
+                        });
+                    })
+                    .catch(function () { /* keep polling quietly */ });
+            }
+            setInterval(tick, 10000);
+        })();
+    </script>
 </body>
 </html>
