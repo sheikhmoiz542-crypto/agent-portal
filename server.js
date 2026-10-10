@@ -114,6 +114,19 @@ db.serialize(() => {
     // Migration: exact submission time, used for the agent-shift duplicate check.
     // Runs on every boot; the error is ignored when the column already exists.
     db.run(`ALTER TABLE links ADD COLUMN submitted_at INTEGER`, () => {});
+    // Multi-week schedules: one row per agent per week (week_start = Monday).
+    db.run(`CREATE TABLE IF NOT EXISTS schedules (
+        username TEXT NOT NULL,
+        week_start TEXT NOT NULL,
+        mon TEXT, tue TEXT, wed TEXT, thu TEXT, fri TEXT, sat TEXT, sun TEXT,
+        PRIMARY KEY (username, week_start)
+    )`);
+    // One-time backfill: copy every agent's live mon..sun into the schedules
+    // table for the current week, so the new system starts from the schedule
+    // already in use. INSERT OR IGNORE keeps it idempotent across boots.
+    db.run(`INSERT OR IGNORE INTO schedules (username, week_start, mon, tue, wed, thu, fri, sat, sun)
+            SELECT username, ?, mon, tue, wed, thu, fri, sat, sun FROM users WHERE role = 'agent'`,
+        [getWeekStart(new Date())], () => {});
     // Migration: follow-up flag for links logged via the Follow Up button.
     // Runs on every boot; the error is ignored when the column already exists.
     db.run(`ALTER TABLE links ADD COLUMN is_followup INTEGER DEFAULT 0`, () => {});
@@ -191,12 +204,70 @@ function getShiftDate() {
     return `${year}-${month}-${day}`;
 }
 
+// Weekday keys indexed by Date.getDay() (0=Sunday).
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+// Monday ('YYYY-MM-DD') of the week containing `d`, in portal time (PKT).
+// Weeks run Monday->Sunday.
+function getWeekStart(d) {
+    const x = new Date(d);
+    const diff = (x.getDay() + 6) % 7; // days since Monday
+    x.setDate(x.getDate() - diff);
+    const y = x.getFullYear(), m = String(x.getMonth() + 1).padStart(2, '0'), dd = String(x.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dd}`;
+}
+
+// Add n days to a 'YYYY-MM-DD' date string.
+function addDaysStr(dateStr, n) {
+    const parts = dateStr.split('-').map(Number);
+    const x = new Date(parts[0], parts[1] - 1, parts[2]);
+    x.setDate(x.getDate() + n);
+    const y = x.getFullYear(), m = String(x.getMonth() + 1).padStart(2, '0'), dd = String(x.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dd}`;
+}
+
+// Human label for a week: 'Mon 12 Oct - Sun 18 Oct'.
+function formatWeekLabel(weekStart) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const parts = weekStart.split('-').map(Number);
+    const mon = new Date(parts[0], parts[1] - 1, parts[2]);
+    const sun = new Date(parts[0], parts[1] - 1, parts[2] + 6);
+    return 'Mon ' + mon.getDate() + ' ' + months[mon.getMonth()] + ' - Sun ' + sun.getDate() + ' ' + months[sun.getMonth()];
+}
+
+// Schedule row for one agent + one week (Monday 'YYYY-MM-DD'). Falls back to
+// the users table (the pre-multi-week schedule) when no row exists yet.
+function getScheduleForWeek(username, weekStart, cb) {
+    db.get(`SELECT mon, tue, wed, thu, fri, sat, sun FROM schedules WHERE username = ? AND week_start = ?`,
+        [username, weekStart], (err, row) => {
+            if (row) return cb(row);
+            db.get(`SELECT mon, tue, wed, thu, fri, sat, sun FROM users WHERE username = ?`, [username], (err, u) => cb(u || {}));
+        });
+}
+
+// Builds schedFor(date) -> schedule string for that date's weekday. Loads the
+// schedule rows for the weeks containing `now` and yesterday (they can differ
+// across a Monday boundary), so overnight shifts at week edges stay correct.
+function loadSchedFor(username, now, cb) {
+    const wsToday = getWeekStart(now);
+    const yest = new Date(now); yest.setDate(yest.getDate() - 1);
+    const wsYest = getWeekStart(yest);
+    getScheduleForWeek(username, wsToday, (schedToday) => {
+        if (wsYest === wsToday) {
+            cb((d) => schedToday[DAY_KEYS[d.getDay()]]);
+        } else {
+            getScheduleForWeek(username, wsYest, (schedYest) => {
+                cb((d) => (getWeekStart(d) === wsToday ? schedToday : schedYest)[DAY_KEYS[d.getDay()]]);
+            });
+        }
+    });
+}
+
 // Shift key for the break reset: changes when the agent's shift ENDS (not only
 // when the next one starts), so breaks refresh even in the gap between shifts.
 // Returns 'shift:<startMs>' while inside a shift, 'ended:<endMs>' after it ended,
 // and 'sys:<date>' when the schedule is OFF/unparseable (falls back to system shift).
-function getAgentShiftKey(user, now) {
-    const keys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+function getAgentShiftKey(schedFor, now) {
     const parseShift = (sched) => {
         if (typeof sched !== 'string') return null;
         const m = sched.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
@@ -212,7 +283,7 @@ function getAgentShiftKey(user, now) {
     for (const offset of [0, 1]) {
         const d = new Date(now);
         d.setDate(d.getDate() - offset);
-        const t = parseShift(user[keys[d.getDay()]]);
+        const t = parseShift(schedFor(d));
         if (!t) continue;
         const S = atTime(d, t.sh, t.sm);
         let E = atTime(d, t.eh, t.em);
@@ -228,8 +299,7 @@ function getAgentShiftKey(user, now) {
 // along it is. Returns { state, startMs, endMs, startLabel, endLabel } where state
 // is 'in' (shift running), 'ended' (shift finished), 'upcoming' (today's shift
 // hasn't started yet) or 'off' (no shift today/yesterday).
-function getShiftProgressInfo(user, now) {
-    const keys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+function getShiftProgressInfo(schedFor, now) {
     const parseShift = (sched) => {
         if (typeof sched !== 'string') return null;
         const m = sched.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
@@ -247,7 +317,7 @@ function getShiftProgressInfo(user, now) {
     };
     const nowMs = now.getTime();
     const windowOf = (d) => {
-        const t = parseShift(user[keys[d.getDay()]]);
+        const t = parseShift(schedFor(d));
         if (!t) return null;
         const S = atTime(d, t.sh, t.sm);
         let E = atTime(d, t.eh, t.em);
@@ -277,8 +347,7 @@ function getShiftProgressInfo(user, now) {
 // derived from their schedule (e.g. "17:00 - 02:00"). "Current shift" means the
 // most recently started shift. Returns null when the schedule is OFF or
 // unparseable — callers then fall back to the system shift date.
-function getAgentShiftStartMs(user, now) {
-    const keys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+function getAgentShiftStartMs(schedFor, now) {
     const parseStart = (sched) => {
         const m = typeof sched === 'string' && sched.match(/(\d{1,2}):(\d{2})/);
         return m ? { h: parseInt(m[1], 10), m: parseInt(m[2], 10) } : null;
@@ -288,13 +357,13 @@ function getAgentShiftStartMs(user, now) {
         x.setHours(t.h, t.m, 0, 0);
         return x.getTime();
     };
-    const todayStart = parseStart(user[keys[now.getDay()]]);
+    const todayStart = parseStart(schedFor(now));
     if (todayStart && now.getTime() >= atTime(now, todayStart)) {
         return atTime(now, todayStart);
     }
     const y = new Date(now);
     y.setDate(y.getDate() - 1);
-    const yStart = parseStart(user[keys[y.getDay()]]);
+    const yStart = parseStart(schedFor(y));
     if (yStart) return atTime(y, yStart);
     return null;
 }
@@ -352,6 +421,11 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
         return res.redirect('/login');
     }
 
+    // Effective schedule for the current week: future weeks auto-activate by
+    // date, so the agent portal always follows the right week's schedule.
+    const schedNow = new Date();
+    getScheduleForWeek(requestedUsername, getWeekStart(schedNow), (schedWeek) => {
+    loadSchedFor(requestedUsername, schedNow, (schedFor) => {
     db.get(`SELECT * FROM users WHERE username = ? AND role = 'agent'`, [requestedUsername], (err, user) => {
         if (!user) return res.redirect('/login');
 
@@ -362,7 +436,7 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
         // Breaks reset with the agent's own shift. break_shift_<username> records which
         // shift the break cookies belong to; a new shift means fresh 30/15/15 breaks,
         // whether the browser stayed open or was closed.
-        const breakShiftKey = getAgentShiftKey(user, new Date());
+        const breakShiftKey = getAgentShiftKey(schedFor, schedNow);
         const ownBreaks = loggedRole === 'agent' && loggedUser === requestedUsername;
         let b1Rem, b2Rem, b3Rem, breakStatus, breakStartTime, breakExceed;
         if (ownBreaks && req.cookies[`break_shift_${user.username}`] !== breakShiftKey) {
@@ -400,7 +474,7 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
                             fullName: user.full_name,
                             userLinksCount: userLinksCount,
                             leaderboard: leaderboard || [],
-                            mySchedule: user,
+                            mySchedule: schedWeek,
                             scheduleRange: scheduleRange,
                             todayDayKey: todayDayKey,
                             breakStatus: breakStatus,
@@ -413,7 +487,7 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
                             isFollowupMsg: !!req.query.followup,
                             breaknotice: req.query.breaknotice || null,
                             breakExceed: breakExceed,
-                            shiftInfo: getShiftProgressInfo(user, new Date()),
+                            shiftInfo: getShiftProgressInfo(schedFor, schedNow),
                             recentLinks: recentLinks || [],
                             recoveryCode: recoveryCode
                         });
@@ -423,6 +497,8 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
             });
         });
     });
+    }); // end getScheduleForWeek
+    }); // end loadSchedFor
 });
 
 app.post('/submit-link/:username', blockAgentOnMobile, (req, res) => {
@@ -476,9 +552,11 @@ app.get('/api/check-duplicate', requireLogin, blockAgentOnMobile, (req, res) => 
     if (loggedRole !== 'agent') return res.json({ duplicate: false });
     const link = req.query.link || '';
     if (!link) return res.json({ duplicate: false });
+    const dupNow = new Date();
+    loadSchedFor(loggedUser, dupNow, (schedFor) => {
     db.get(`SELECT * FROM users WHERE username = ?`, [loggedUser], (err, user) => {
         if (err || !user) return res.json({ duplicate: false });
-        const shiftStartMs = getAgentShiftStartMs(user, new Date());
+        const shiftStartMs = getAgentShiftStartMs(schedFor, dupNow);
         if (shiftStartMs === null) {
             // No usable schedule (OFF / unparseable): fall back to the system shift date
             const shiftDate = getShiftDate();
@@ -492,6 +570,7 @@ app.get('/api/check-duplicate', requireLogin, blockAgentOnMobile, (req, res) => 
                 AND (submitted_at >= ? OR (submitted_at IS NULL AND date = ?))`,
             [link, loggedUser, shiftStartMs, getShiftDate()], (err, row) => res.json({ duplicate: !!row }));
     });
+    }); // end loadSchedFor
 });
 
 // Delete one of the agent's own links (e.g. wrongly entered)
@@ -581,6 +660,25 @@ app.get('/manager', requireManager, (req, res) => {
                                 // Legacy fallback: codes generated before per-user keys (owner only)
                                 const legacyCode = (loggedRole === 'owner' && legacyRow && legacyRow.value) ? legacyRow.value : null;
                                 const recoveryCode = (rcRow && rcRow.value) || legacyCode || null;
+                                // Week tabs for multi-week scheduling: current week onward.
+                                // ?week=YYYY-MM-DD selects the week being edited (defaults to current).
+                                const selectedWeek = (/^\d{4}-\d{2}-\d{2}$/.test(req.query.week || '')) ? req.query.week : getWeekStart(new Date());
+                                const curWeek = getWeekStart(new Date());
+                                db.all(`SELECT DISTINCT week_start FROM schedules WHERE week_start >= ? ORDER BY week_start`, [curWeek], (err, weekRows) => {
+                                    const weeks = (weekRows || []).map(r => ({ week_start: r.week_start, label: formatWeekLabel(r.week_start), isCurrent: r.week_start === curWeek }));
+                                    if (!weeks.some(w => w.week_start === selectedWeek)) {
+                                        weeks.unshift({ week_start: selectedWeek, label: formatWeekLabel(selectedWeek), isCurrent: selectedWeek === curWeek });
+                                        weeks.sort((a, b) => a.week_start < b.week_start ? -1 : 1);
+                                    }
+                                    db.all(`SELECT username, mon, tue, wed, thu, fri, sat, sun FROM schedules WHERE week_start = ?`, [selectedWeek], (err, schedRows) => {
+                                        const weekSchedules = {};
+                                        (schedRows || []).forEach(r => { weekSchedules[r.username] = r; });
+                                        // Fall back to the users row for agents with no row this week yet.
+                                        (agents || []).forEach(a => {
+                                            if (!weekSchedules[a.username]) {
+                                                weekSchedules[a.username] = { mon: a.mon, tue: a.tue, wed: a.wed, thu: a.thu, fri: a.fri, sat: a.sat, sun: a.sun };
+                                            }
+                                        });
                                 res.render('manager', {
                                     links: filteredLinks || [],
                                     agents: agents || [],
@@ -593,8 +691,13 @@ app.get('/manager', requireManager, (req, res) => {
                                     isOwner: isOwner,
                                     userRole: loggedRole,
                                     success: req.query.success || null,
-                                    error: req.query.error || null
+                                    error: req.query.error || null,
+                                    selectedWeek: selectedWeek,
+                                    weeks: weeks,
+                                    weekSchedules: weekSchedules
                                 });
+                                    }); // end week schedules
+                                }); // end weeks
                             });
                         });
                     });
@@ -604,14 +707,39 @@ app.get('/manager', requireManager, (req, res) => {
     });
 });
 
+// Printable team schedule preview for any week (?week=YYYY-MM-DD, Monday).
 app.get('/manager/preview-schedule', requireManager, (req, res) => {
-
+    const week = (/^\d{4}-\d{2}-\d{2}$/.test(req.query.week || '')) ? req.query.week : getWeekStart(new Date());
+    const curWeek = getWeekStart(new Date());
     db.all(`SELECT * FROM users WHERE role = 'agent' ORDER BY full_name`, (err, agents) => {
-        db.get(`SELECT value FROM meta WHERE key = 'schedule_range'`, (err, metaRow) => {
-            res.render('schedule-preview', { 
-                agents: agents || [],
-                scheduleRange: metaRow ? metaRow.value : ''
+        db.all(`SELECT username, mon, tue, wed, thu, fri, sat, sun FROM schedules WHERE week_start = ?`, [week], (err, schedRows) => {
+            const map = {};
+            (schedRows || []).forEach(r => { map[r.username] = r; });
+            (agents || []).forEach(a => {
+                const w = map[a.username];
+                if (w) ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(k => { a[k] = w[k]; });
             });
+            db.all(`SELECT DISTINCT week_start FROM schedules WHERE week_start >= ? ORDER BY week_start`, [curWeek], (err, weekRows) => {
+                const weeks = (weekRows || []).map(r => ({ week_start: r.week_start, label: formatWeekLabel(r.week_start), isCurrent: r.week_start === curWeek }));
+                res.render('schedule-preview', {
+                    agents: agents || [],
+                    scheduleRange: formatWeekLabel(week),
+                    selectedWeek: week,
+                    weeks: weeks
+                });
+            });
+        });
+    });
+});
+
+// Live link feed for the manager dashboard: the page polls this every 10s so
+// new agent submissions appear without a manual refresh. since_id lets the
+// client fetch only what arrived after its newest row.
+app.get('/api/manager-live', requireManager, (req, res) => {
+    const sinceId = parseInt(req.query.since_id || '0', 10) || 0;
+    db.all(`SELECT id, username, full_name, link, date, is_followup FROM links WHERE id > ? ORDER BY id DESC`, [sinceId], (err, rows) => {
+        db.get(`SELECT COUNT(*) AS c FROM links`, (err, row) => {
+            res.json({ ok: true, total: row ? row.c : 0, links: rows || [] });
         });
     });
 });
@@ -627,6 +755,81 @@ app.post('/update-agent-schedule', requireManager, (req, res) => {
             }
             res.redirect('/manager?success=' + encodeURIComponent(`Schedule successfully updated for ${username}!`));
         });
+});
+
+// Save ALL agents' schedules for one week in a single submit (one form -> one
+// save). Body: week_start ('YYYY-MM-DD', Monday) and sched[username][mon..sun].
+// When the saved week is the current week, users.mon..sun is refreshed too so
+// the legacy fallback stays in sync.
+app.post('/update-week-schedule', requireManager, (req, res) => {
+    const weekStart = (req.body.week_start || '').trim();
+    const sched = req.body.sched || {};
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
+        return res.redirect('/manager?error=' + encodeURIComponent('Invalid week selected.'));
+    }
+    db.all(`SELECT username FROM users WHERE role = 'agent'`, (err, agentRows) => {
+        const valid = new Set((agentRows || []).map(r => r.username));
+        const usernames = Object.keys(sched).filter(u => valid.has(u));
+        if (usernames.length === 0) {
+            return res.redirect('/manager?week=' + weekStart);
+        }
+        const isCurrentWeek = weekStart === getWeekStart(new Date());
+        let pending = usernames.length;
+        let failed = false;
+        const finishOne = () => {
+            if (--pending === 0) {
+                const qs = '/manager?week=' + weekStart + (failed
+                    ? '&error=' + encodeURIComponent('Some schedules failed to save.')
+                    : '&success=' + encodeURIComponent('Schedules saved for week of ' + formatWeekLabel(weekStart) + '!'));
+                res.redirect(qs);
+            }
+        };
+        usernames.forEach((un) => {
+            const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+                .map(k => ((sched[un] && sched[un][k]) || '').trim());
+            db.run(`INSERT OR REPLACE INTO schedules (username, week_start, mon, tue, wed, thu, fri, sat, sun)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [un, weekStart, ...days], (err) => {
+                    if (err) { failed = true; return finishOne(); }
+                    if (isCurrentWeek) {
+                        db.run(`UPDATE users SET mon = ?, tue = ?, wed = ?, thu = ?, fri = ?, sat = ?, sun = ? WHERE username = ?`,
+                            [...days, un], () => finishOne());
+                    } else {
+                        finishOne();
+                    }
+                });
+        });
+    });
+});
+
+// Create the next schedule week (after the latest existing week), pre-filled as
+// a copy of the latest week so the manager edits rather than retypes. No limit
+// on how many future weeks can be added.
+app.post('/add-schedule-week', requireManager, (req, res) => {
+    const curWeek = getWeekStart(new Date());
+    db.get(`SELECT MAX(week_start) AS m FROM schedules`, (err, row) => {
+        const latest = (row && row.m && row.m >= curWeek) ? row.m : curWeek;
+        const next = addDaysStr(latest, 7);
+        db.all(`SELECT username, mon, tue, wed, thu, fri, sat, sun FROM schedules WHERE week_start = ?`, [latest], (err, schedRows) => {
+            db.all(`SELECT username, mon, tue, wed, thu, fri, sat, sun FROM users WHERE role = 'agent'`, (err, agents) => {
+                const map = {};
+                (schedRows || []).forEach(r => { map[r.username] = r; });
+                const list = agents || [];
+                if (list.length === 0) return res.redirect('/manager?week=' + next);
+                let pending = list.length;
+                list.forEach(a => {
+                    const src = map[a.username] || a;
+                    db.run(`INSERT OR IGNORE INTO schedules (username, week_start, mon, tue, wed, thu, fri, sat, sun)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [a.username, next, src.mon, src.tue, src.wed, src.thu, src.fri, src.sat, src.sun], () => {
+                            if (--pending === 0) {
+                                res.redirect('/manager?week=' + next + '&success=' + encodeURIComponent('New week added: ' + formatWeekLabel(next) + ' (copied from previous week).'));
+                            }
+                        });
+                });
+            });
+        });
+    });
 });
 
 app.post('/update-schedule-range', requireManager, (req, res) => {
@@ -703,7 +906,11 @@ app.post('/add-agent', requireManager, (req, res) => {
                     if (err) {
                         return res.redirect('/manager?error=' + encodeURIComponent('Could not add agent. Please try again.'));
                     }
-                    res.redirect('/manager?success=' + encodeURIComponent(`Agent "${name}" added! Login username: ${username}`));
+                    db.run(`INSERT OR IGNORE INTO schedules (username, week_start, mon, tue, wed, thu, fri, sat, sun)
+                            VALUES (?, ?, 'OFF', 'OFF', 'OFF', 'OFF', 'OFF', 'OFF', 'OFF')`,
+                        [username, getWeekStart(new Date())], () => {
+                            res.redirect('/manager?success=' + encodeURIComponent(`Agent "${name}" added! Login username: ${username}`));
+                        });
                 });
         }, () => {
             res.redirect('/manager?error=' + encodeURIComponent('Could not add agent. Please try again.'));
