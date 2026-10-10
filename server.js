@@ -732,6 +732,17 @@ app.get('/manager/preview-schedule', requireManager, (req, res) => {
     });
 });
 
+// Live leaderboard for agent pages: any agent's submission refreshes everyone's
+// leaderboard counts without a page reload (polled every 10s).
+app.get('/api/leaderboard-live', requireLogin, (req, res) => {
+    db.all(`SELECT username, full_name,
+            SUM(CASE WHEN COALESCE(is_followup,0)=0 THEN 1 ELSE 0 END) AS count,
+            SUM(CASE WHEN COALESCE(is_followup,0)=1 THEN 1 ELSE 0 END) AS followups
+            FROM links WHERE date = ? GROUP BY username ORDER BY count DESC`, [getShiftDate()], (err, rows) => {
+        res.json({ ok: true, agents: rows || [] });
+    });
+});
+
 // Live link feed for the manager dashboard: the page polls this every 10s so
 // new agent submissions appear without a manual refresh. since_id lets the
 // client fetch only what arrived after its newest row.
