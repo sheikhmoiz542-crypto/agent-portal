@@ -127,6 +127,20 @@ db.serialize(() => {
     db.run(`INSERT OR IGNORE INTO schedules (username, week_start, mon, tue, wed, thu, fri, sat, sun)
             SELECT username, ?, mon, tue, wed, thu, fri, sat, sun FROM users WHERE role = 'agent'`,
         [getWeekStart(new Date())], () => {});
+    // Break tracking for the manager/owner portal: every break start/end is
+    // logged here (the agent's own timer keeps using cookies unchanged).
+    db.run(`CREATE TABLE IF NOT EXISTS break_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL,
+        full_name TEXT,
+        break_num INTEGER,
+        allowance_min INTEGER,
+        started_at INTEGER,
+        ended_at INTEGER,
+        elapsed_min INTEGER,
+        exceeded_min INTEGER,
+        day TEXT
+    )`);
     // Migration: follow-up flag for links logged via the Follow Up button.
     // Runs on every boot; the error is ignored when the column already exists.
     db.run(`ALTER TABLE links ADD COLUMN is_followup INTEGER DEFAULT 0`, () => {});
@@ -233,6 +247,40 @@ function formatWeekLabel(weekStart) {
     const mon = new Date(parts[0], parts[1] - 1, parts[2]);
     const sun = new Date(parts[0], parts[1] - 1, parts[2] + 6);
     return 'Mon ' + mon.getDate() + ' ' + months[mon.getMonth()] + ' - Sun ' + sun.getDate() + ' ' + months[sun.getMonth()];
+}
+
+// Today's date 'YYYY-MM-DD' in portal time (PKT), for daily grouping.
+function getTodayStr() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+// Agents genuinely on break right now: break_log rows still open whose break
+// started inside the agent's CURRENT shift window (stale rows from older
+// shifts are excluded).
+function getLiveBreaks(cb) {
+    db.all(`SELECT username, full_name, break_num, allowance_min, started_at FROM break_log WHERE ended_at IS NULL ORDER BY started_at`, (err, rows) => {
+        const open = rows || [];
+        if (open.length === 0) return cb([]);
+        const byUser = {};
+        open.forEach(r => { (byUser[r.username] = byUser[r.username] || []).push(r); });
+        const users = Object.keys(byUser);
+        let pending = users.length;
+        const live = [];
+        users.forEach(u => {
+            const now = new Date();
+            loadSchedFor(u, now, (schedFor) => {
+                const info = getShiftProgressInfo(schedFor, now);
+                if (info.state === 'in' && info.startMs) {
+                    byUser[u].forEach(r => { if (r.started_at >= info.startMs) live.push(r); });
+                }
+                if (--pending === 0) {
+                    live.sort((a, b) => a.started_at - b.started_at);
+                    cb(live);
+                }
+            });
+        });
+    });
 }
 
 // Schedule row for one agent + one week (Monday 'YYYY-MM-DD'). Falls back to
@@ -437,6 +485,16 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
         // shift the break cookies belong to; a new shift means fresh 30/15/15 breaks,
         // whether the browser stayed open or was closed.
         const breakShiftKey = getAgentShiftKey(schedFor, schedNow);
+        // Break-tracking hygiene: close break_log rows from previous shifts so the
+        // manager's live list never shows stale breaks.
+        const progInfo = getShiftProgressInfo(schedFor, schedNow);
+        if (progInfo.state === 'in' && progInfo.startMs) {
+            db.run(`UPDATE break_log SET ended_at = ? WHERE username = ? AND ended_at IS NULL AND started_at < ?`,
+                [Date.now(), user.username, progInfo.startMs], () => {});
+        } else {
+            db.run(`UPDATE break_log SET ended_at = ? WHERE username = ? AND ended_at IS NULL`,
+                [Date.now(), user.username], () => {});
+        }
         const ownBreaks = loggedRole === 'agent' && loggedUser === requestedUsername;
         let b1Rem, b2Rem, b3Rem, breakStatus, breakStartTime, breakExceed;
         if (ownBreaks && req.cookies[`break_shift_${user.username}`] !== breakShiftKey) {
@@ -612,6 +670,9 @@ app.post('/toggle-break/:username', blockAgentOnMobile, (req, res) => {
         currentRem = Math.max(0, currentRem - elapsedMins);
         res.cookie(remKey, currentRem, { httpOnly: true });
         res.clearCookie(`break_start_${requestedUsername}`);
+        // Break tracking: close the open break_log row for this break.
+        db.run(`UPDATE break_log SET ended_at = ?, elapsed_min = ?, exceeded_min = ? WHERE username = ? AND ended_at IS NULL`,
+            [Date.now(), elapsedMins, exceededMins, requestedUsername], () => {});
 
         if (exceededMins > 0) {
             const prevExceed = req.cookies[`exceed_${requestedUsername}`] !== undefined ? parseInt(req.cookies[`exceed_${requestedUsername}`]) : 0;
@@ -623,6 +684,18 @@ app.post('/toggle-break/:username', blockAgentOnMobile, (req, res) => {
 
     if (newStatus !== 'off') {
         res.cookie(`break_start_${requestedUsername}`, Date.now(), { httpOnly: true });
+        // Break tracking: close any still-open row (stale), then log the new break.
+        // The agent's own cookie timer is untouched.
+        const startBn = newStatus === 'break2' ? 2 : (newStatus === 'break3' ? 3 : 1);
+        const startAllow = startBn === 1 ? 30 : 15;
+        const startMs = Date.now();
+        db.run(`UPDATE break_log SET ended_at = ? WHERE username = ? AND ended_at IS NULL`, [startMs, requestedUsername], () => {
+            db.get(`SELECT full_name FROM users WHERE username = ?`, [requestedUsername], (err, u) => {
+                db.run(`INSERT INTO break_log (username, full_name, break_num, allowance_min, started_at, day)
+                        VALUES (?, ?, ?, ?, ?, ?)`,
+                    [requestedUsername, (u && u.full_name) || requestedUsername, startBn, startAllow, startMs, getTodayStr()], () => {});
+            });
+        });
     }
 
     res.cookie(`break_${requestedUsername}`, newStatus, { httpOnly: true });
@@ -679,6 +752,9 @@ app.get('/manager', requireManager, (req, res) => {
                                                 weekSchedules[a.username] = { mon: a.mon, tue: a.tue, wed: a.wed, thu: a.thu, fri: a.fri, sat: a.sat, sun: a.sun };
                                             }
                                         });
+                                getLiveBreaks((liveBreaks) => {
+                                    db.all(`SELECT username, full_name, COUNT(*) AS breaks_taken, COALESCE(SUM(elapsed_min),0) AS minutes_used, COALESCE(SUM(exceeded_min),0) AS minutes_over
+                                            FROM break_log WHERE day = ? GROUP BY username ORDER BY minutes_used DESC`, [getTodayStr()], (err, breakToday) => {
                                 res.render('manager', {
                                     links: filteredLinks || [],
                                     agents: agents || [],
@@ -694,8 +770,12 @@ app.get('/manager', requireManager, (req, res) => {
                                     error: req.query.error || null,
                                     selectedWeek: selectedWeek,
                                     weeks: weeks,
-                                    weekSchedules: weekSchedules
+                                    weekSchedules: weekSchedules,
+                                    liveBreaks: liveBreaks || [],
+                                    breakToday: breakToday || []
                                 });
+                                    }); // end break today
+                                }); // end live breaks
                                     }); // end week schedules
                                 }); // end weeks
                             });
@@ -750,7 +830,12 @@ app.get('/api/manager-live', requireManager, (req, res) => {
     const sinceId = parseInt(req.query.since_id || '0', 10) || 0;
     db.all(`SELECT id, username, full_name, link, date, is_followup FROM links WHERE id > ? ORDER BY id DESC`, [sinceId], (err, rows) => {
         db.get(`SELECT COUNT(*) AS c FROM links`, (err, row) => {
-            res.json({ ok: true, total: row ? row.c : 0, links: rows || [] });
+            getLiveBreaks((liveBreaks) => {
+                db.all(`SELECT username, full_name, COUNT(*) AS breaks_taken, COALESCE(SUM(elapsed_min),0) AS minutes_used, COALESCE(SUM(exceeded_min),0) AS minutes_over
+                        FROM break_log WHERE day = ? GROUP BY username ORDER BY minutes_used DESC`, [getTodayStr()], (err, breakToday) => {
+                    res.json({ ok: true, total: row ? row.c : 0, links: rows || [], breaksLive: liveBreaks || [], breaksToday: breakToday || [] });
+                });
+            });
         });
     });
 });
