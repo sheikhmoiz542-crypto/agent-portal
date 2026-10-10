@@ -706,15 +706,26 @@ app.get('/manager', requireManager, (req, res) => {
     const { user: loggedUser, role: loggedRole } = getAuth(req);
     const isOwner = loggedRole === 'owner';
 
-    const selectedDate = req.query.date || '';
     const selectedAgent = req.query.agent || '';
+    // Date-range filter: ?from=YYYY-MM-DD & ?to=YYYY-MM-DD (legacy ?date= = single day).
+    let selectedFrom = req.query.from || '';
+    let selectedTo = req.query.to || '';
+    const legacyDate = req.query.date || '';
+    if (legacyDate && !selectedFrom && !selectedTo) { selectedFrom = legacyDate; selectedTo = legacyDate; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedFrom)) selectedFrom = '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedTo)) selectedTo = '';
+    if (selectedFrom && selectedTo && selectedFrom > selectedTo) { const t = selectedFrom; selectedFrom = selectedTo; selectedTo = t; }
 
     let query = `SELECT * FROM links WHERE 1=1`;
     let params = [];
 
-    if (selectedDate) {
-        query += ` AND date = ?`;
-        params.push(selectedDate);
+    if (selectedFrom) {
+        query += ` AND date >= ?`;
+        params.push(selectedFrom);
+    }
+    if (selectedTo) {
+        query += ` AND date <= ?`;
+        params.push(selectedTo);
     }
     if (selectedAgent) {
         query += ` AND username = ?`;
@@ -725,7 +736,13 @@ app.get('/manager', requireManager, (req, res) => {
     
     db.all(query, params, (err, filteredLinks) => {
         db.all(`SELECT * FROM users WHERE role = 'agent' ORDER BY full_name`, (err, agents) => {
-            db.all(`SELECT username, full_name, date, COUNT(*) as total_links FROM links GROUP BY username, date ORDER BY date DESC, total_links DESC`, (err, dailyStats) => {
+            let statsQuery = `SELECT username, full_name, date, COUNT(*) as total_links FROM links WHERE 1=1`;
+            let statsParams = [];
+            if (selectedFrom) { statsQuery += ` AND date >= ?`; statsParams.push(selectedFrom); }
+            if (selectedTo) { statsQuery += ` AND date <= ?`; statsParams.push(selectedTo); }
+            if (selectedAgent) { statsQuery += ` AND username = ?`; statsParams.push(selectedAgent); }
+            statsQuery += ` GROUP BY username, date ORDER BY date DESC, total_links DESC`;
+            db.all(statsQuery, statsParams, (err, dailyStats) => {
                 db.get(`SELECT value FROM meta WHERE key = 'schedule_range'`, (err, metaRow) => {
                     db.all(`SELECT username, full_name, email, role FROM users WHERE role IN ('owner', 'manager') ORDER BY full_name`, (err, managers) => {
                         db.get(`SELECT value FROM meta WHERE key = ?`, [`recovery_code_${loggedUser}`], (err, rcRow) => {
@@ -762,7 +779,8 @@ app.get('/manager', requireManager, (req, res) => {
                                     recoveryCode: recoveryCode,
                                     dailyStats: dailyStats || [],
                                     scheduleRange: metaRow ? metaRow.value : '',
-                                    selectedDate: selectedDate,
+                                    selectedFrom: selectedFrom,
+                                    selectedTo: selectedTo,
                                     selectedAgent: selectedAgent,
                                     isOwner: isOwner,
                                     userRole: loggedRole,
