@@ -15,6 +15,15 @@
             <button onclick="window.print()" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded text-sm font-semibold transition">Print / Save as PDF</button>
         </div>
 
+        <% if (typeof weeks !== 'undefined' && weeks.length) { %>
+        <div class="flex flex-wrap gap-2 items-center bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
+            <span class="text-xs text-slate-400 font-semibold mr-1">Week:</span>
+            <% weeks.forEach(w => { %>
+                <a href="/manager/preview-schedule?week=<%= w.week_start %>" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition <%= w.week_start === selectedWeek ? 'bg-indigo-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-200' %>"><%= w.label %><%= w.isCurrent ? ' (Current)' : '' %></a>
+            <% }) %>
+        </div>
+        <% } %>
+
         <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg overflow-x-auto">
             <table class="w-full text-left border-collapse text-sm">
                 <thead>

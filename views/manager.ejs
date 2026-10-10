@@ -52,7 +52,7 @@
                     <svg class="w-5 h-5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                 </div>
                 <div>
-                    <div class="text-2xl font-bold text-white"><%= links.length %></div>
+                    <div id="linksInViewCount" class="text-2xl font-bold text-white"><%= links.length %></div>
                     <div class="text-xs text-slate-500">Links in View</div>
                 </div>
             </div>
@@ -211,56 +211,43 @@
             <% } %>
         </div>
 
-        <!-- Weekly Schedule Management Section -->
-        <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 shadow-lg">
-            <h2 class="text-lg font-semibold mb-4 text-indigo-300">Manage Weekly Schedule for Agents</h2>
+        <!-- Weekly Schedule Management Section (multi-week) -->
+        <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 shadow-lg" id="schedules">
+            <h2 class="text-lg font-semibold mb-2 text-indigo-300">Manage Weekly Schedules</h2>
+            <p class="text-xs text-slate-500 mb-4">Pick a week, edit every agent's schedule, then hit <span class="text-slate-300 font-semibold">Save All Schedules</span> once &mdash; all agents save together. New weeks activate automatically when their Monday arrives; the agent portal always follows the current week.</p>
+
+            <!-- Week tabs -->
+            <div class="flex flex-wrap gap-2 mb-4 items-center">
+                <% weeks.forEach(w => { %>
+                    <a href="/manager?week=<%= w.week_start %>#schedules" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition <%= w.week_start === selectedWeek ? 'bg-indigo-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-200' %>"><%= w.label %><%= w.isCurrent ? ' (Current)' : '' %></a>
+                <% }) %>
+                <form action="/add-schedule-week" method="POST" class="inline">
+                    <button type="submit" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition">+ Add Week</button>
+                </form>
+                <a href="/manager/preview-schedule?week=<%= selectedWeek %>" target="_blank" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 transition">Preview This Week</a>
+            </div>
+
             <div class="space-y-4 max-h-96 overflow-y-auto">
                 <% agents.forEach(agent => { %>
+                    <% const ws = weekSchedules[agent.username] || {}; %>
+                    <% const dayNames = {mon:'Mon',tue:'Tue',wed:'Wed',thu:'Thu',fri:'Fri',sat:'Sat',sun:'Sun'}; %>
                     <div class="bg-slate-900 p-4 rounded-lg border border-slate-750 space-y-3">
-                    <form action="/update-agent-schedule" method="POST" class="space-y-3">
-                        <input type="hidden" name="username" value="<%= agent.username %>">
-                        <div class="flex justify-between items-center gap-2">
-                            <div class="flex items-center gap-3 min-w-0">
-                                <div class="w-9 h-9 rounded-full bg-indigo-600/25 text-indigo-300 flex items-center justify-center font-bold text-sm shrink-0"><%= agent.full_name.charAt(0).toUpperCase() %></div>
-                                <div>
-                                    <div class="font-bold text-slate-100 truncate"><%= agent.full_name %> <span class="text-slate-500 font-normal text-xs">@<%= agent.username %></span></div>
-                                    <% if (agent.email) { %><div class="text-xs text-slate-500 truncate"><%= agent.email %></div><% } %>
-                                </div>
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="w-9 h-9 rounded-full bg-indigo-600/25 text-indigo-300 flex items-center justify-center font-bold text-sm shrink-0"><%= agent.full_name.charAt(0).toUpperCase() %></div>
+                            <div>
+                                <div class="font-bold text-slate-100 truncate"><%= agent.full_name %> <span class="text-slate-500 font-normal text-xs">@<%= agent.username %></span></div>
+                                <% if (agent.email) { %><div class="text-xs text-slate-500 truncate"><%= agent.email %></div><% } %>
                             </div>
-                            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-1.5 rounded text-xs font-semibold transition">Save Schedule</button>
                         </div>
                         <div class="grid grid-cols-2 md:grid-cols-7 gap-2 text-xs">
-                            <div>
-                                <label class="block text-slate-400 mb-1">Mon</label>
-                                <input type="text" name="mon" value="<%= agent.mon %>" class="w-full bg-slate-800 border border-slate-700 rounded p-1 text-center text-white">
-                            </div>
-                            <div>
-                                <label class="block text-slate-400 mb-1">Tue</label>
-                                <input type="text" name="tue" value="<%= agent.tue %>" class="w-full bg-slate-800 border border-slate-700 rounded p-1 text-center text-white">
-                            </div>
-                            <div>
-                                <label class="block text-slate-400 mb-1">Wed</label>
-                                <input type="text" name="wed" value="<%= agent.wed %>" class="w-full bg-slate-800 border border-slate-700 rounded p-1 text-center text-white">
-                            </div>
-                            <div>
-                                <label class="block text-slate-400 mb-1">Thu</label>
-                                <input type="text" name="thu" value="<%= agent.thu %>" class="w-full bg-slate-800 border border-slate-700 rounded p-1 text-center text-white">
-                            </div>
-                            <div>
-                                <label class="block text-slate-400 mb-1">Fri</label>
-                                <input type="text" name="fri" value="<%= agent.fri %>" class="w-full bg-slate-800 border border-slate-700 rounded p-1 text-center text-white">
-                            </div>
-                            <div>
-                                <label class="block text-slate-400 mb-1">Sat</label>
-                                <input type="text" name="sat" value="<%= agent.sat %>" class="w-full bg-slate-800 border border-slate-700 rounded p-1 text-center text-white">
-                            </div>
-                            <div>
-                                <label class="block text-slate-400 mb-1">Sun</label>
-                                <input type="text" name="sun" value="<%= agent.sun %>" class="w-full bg-slate-800 border border-slate-700 rounded p-1 text-center text-white">
-                            </div>
+                            <% Object.keys(dayNames).forEach(d => { %>
+                                <div>
+                                    <label class="block text-slate-400 mb-1"><%= dayNames[d] %></label>
+                                    <input type="text" form="weekScheduleForm" name="sched[<%= agent.username %>][<%= d %>]" value="<%= ws[d] || '' %>" class="w-full bg-slate-800 border border-slate-700 rounded p-1 text-center text-white">
+                                </div>
+                            <% }) %>
                         </div>
-                    </form>
-                    <div class="flex flex-wrap gap-2 items-end pt-3 border-t border-slate-800">
+<div class="flex flex-wrap gap-2 items-end pt-3 border-t border-slate-800">
                         <form action="/reset-agent-password" method="POST" class="flex gap-2 items-end" onsubmit="return confirm('Reset password for <%= agent.full_name %>? The agent will need the new password to log in.');">
                             <input type="hidden" name="username" value="<%= agent.username %>">
                             <div class="relative">
@@ -276,15 +263,22 @@
                             <input type="hidden" name="username" value="<%= agent.username %>">
                             <button type="submit" class="bg-red-600 hover:bg-red-500 px-3 py-1.5 rounded text-xs font-semibold transition">Delete Agent</button>
                         </form>
-                    </div>
+                    
                     </div>
                 <% }) %>
             </div>
+
+            <!-- One form for the whole week: every day-input above belongs to it -->
+            <form id="weekScheduleForm" action="/update-week-schedule" method="POST">
+                <input type="hidden" name="week_start" value="<%= selectedWeek %>">
+            </form>
+            <% const selWeek = weeks.find(w => w.week_start === selectedWeek); %>
+            <button form="weekScheduleForm" type="submit" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-500 px-6 py-2.5 rounded font-semibold transition">Save All Schedules &mdash; <%= selWeek ? selWeek.label : selectedWeek %></button>
         </div>
 
         <!-- Filtered Links Table -->
         <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 shadow-lg">
-            <h2 class="text-lg font-semibold mb-4 text-indigo-300">Submitted Links Result</h2>
+            <h2 class="text-lg font-semibold mb-4 text-indigo-300">Submitted Links Result <span id="liveDot" class="ml-2 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-600/20 text-emerald-300 align-middle"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Live</span></h2>
             <div class="overflow-x-auto max-h-60 overflow-y-auto">
                 <table class="w-full text-left border-collapse text-sm">
                     <thead>
@@ -294,7 +288,7 @@
                             <th class="p-2 sm:p-3">Date (Shift)</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="submittedLinksBody" data-max-id="<%= links.length ? links[0].id : 0 %>">
                         <% if (links.length === 0) { %>
                             <tr><td colspan="3" class="p-4 text-center text-slate-500">No records found for selected filter.</td></tr>
                         <% } else { %>
@@ -410,6 +404,66 @@
                 if (eyeOff) eyeOff.classList.add('hidden');
             }
         }
+
+        // Live link feed: when no date/agent filter is active, poll for new
+        // agent submissions every 10s and prepend them — no manual refresh.
+        window.__managerFilters = { date: <%- JSON.stringify(selectedDate) %>, agent: <%- JSON.stringify(selectedAgent) %> };
+        (function () {
+            var liveDot = document.getElementById('liveDot');
+            var countEl = document.getElementById('linksInViewCount');
+            var tbody = document.getElementById('submittedLinksBody');
+            if (!liveDot || !tbody) return;
+            if (window.__managerFilters.date || window.__managerFilters.agent) {
+                liveDot.style.display = 'none'; // filtered view: live updates off
+                return;
+            }
+            var maxId = parseInt(tbody.getAttribute('data-max-id') || '0', 10) || 0;
+            var lastOk = Date.now();
+            function esc(s) { return String(s == null ? '' : s); }
+            function tick() {
+                if (document.hidden) return;
+                fetch('/api/manager-live?since_id=' + maxId, { credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        if (!d || !d.ok) return;
+                        (d.links || []).slice().reverse().forEach(function (item) {
+                            if (item.id > maxId) maxId = item.id;
+                            var tr = document.createElement('tr');
+                            tr.className = 'border-b border-slate-750 hover:bg-slate-750/50';
+                            var tdName = document.createElement('td');
+                            tdName.className = 'p-2 sm:p-3 font-medium';
+                            tdName.textContent = esc(item.full_name);
+                            var tdLink = document.createElement('td');
+                            tdLink.className = 'p-2 sm:p-3';
+                            var a = document.createElement('a');
+                            a.href = esc(item.link);
+                            a.target = '_blank';
+                            a.className = 'text-indigo-400 hover:underline';
+                            a.textContent = esc(item.link);
+                            tdLink.appendChild(a);
+                            if (item.is_followup) {
+                                var badge = document.createElement('span');
+                                badge.className = 'ml-2 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-yellow-600/20 text-yellow-300';
+                                badge.textContent = 'follow-up';
+                                tdLink.appendChild(badge);
+                            }
+                            var tdDate = document.createElement('td');
+                            tdDate.className = 'p-2 sm:p-3 text-slate-400';
+                            tdDate.textContent = esc(item.date);
+                            tr.appendChild(tdName); tr.appendChild(tdLink); tr.appendChild(tdDate);
+                            tbody.prepend(tr);
+                        });
+                        if (typeof d.total === 'number' && countEl) countEl.textContent = d.total;
+                        lastOk = Date.now();
+                    })
+                    .catch(function () { /* keep polling quietly */ });
+            }
+            setInterval(tick, 10000);
+            setInterval(function () {
+                var s = Math.floor((Date.now() - lastOk) / 1000);
+                liveDot.title = s < 15 ? 'Live — updated just now' : 'Live — updated ' + s + 's ago';
+            }, 5000);
+        })();
     </script>
 </body>
 </html>
