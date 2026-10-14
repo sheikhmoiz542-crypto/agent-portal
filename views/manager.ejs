@@ -306,13 +306,12 @@
         <!-- Daily Summary Stats by Agent -->
         <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 shadow-lg">
             <h2 class="text-lg font-semibold mb-4 text-indigo-300"><% if (selectedFrom || selectedTo || selectedAgent) { %>Summary Stats <span class="text-sm font-normal text-slate-400">(<%= selectedFrom || '…' %> &rarr; <%= selectedTo || '…' %><%= selectedAgent ? ' · @' + selectedAgent : '' %>)</span><% } else { %>All Days & Agents Summary Stats<% } %></h2>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse text-sm">
-                    <thead>
-                        <tr class="bg-slate-900 text-slate-400 border-b border-slate-700">
-                            <th class="p-2 sm:p-3">Date</th>
-                            <th class="p-2 sm:p-3">Agent Name</th>
-                            <th class="p-2 sm:p-3">Total Links</th>
+            <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                    <tr class="bg-slate-900 text-slate-400 border-b border-slate-700">
+                        <th class="p-2 sm:p-3">Date</th>
+                        <th class="p-2 sm:p-3">Agent Name</th>
+                        <th class="p-2 sm:p-3">Total Links</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -329,7 +328,6 @@
                         <% } %>
                     </tbody>
                 </table>
-            </div>
         </div>
     </div>
 
