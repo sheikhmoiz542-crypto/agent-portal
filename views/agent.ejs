@@ -17,9 +17,9 @@
         </div>
     </nav>
 
-    <div class="max-w-6xl mx-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div class="max-w-[1400px] mx-auto p-6 grid grid-cols-1 md:grid-cols-7 gap-6">
         <!-- Left: Submit Link & Breaks -->
-        <div class="md:col-span-2 space-y-6">
+        <div class="md:col-span-4 space-y-6">
             <% if (success) { %>
                 <div class="<%= isFollowupMsg ? 'bg-amber-500/20 border-amber-500 text-amber-300' : 'bg-green-500/20 border-green-500 text-green-300' %> border p-3 rounded text-sm"><%= success %></div>
             <% } %>
@@ -224,7 +224,7 @@
         </div>
 
         <!-- Right: Leaderboard & Schedule -->
-        <div class="space-y-6">
+        <div class="md:col-span-3 space-y-6">
             <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
                 <h2 class="text-lg font-semibold mb-4 text-indigo-300">Today's Leaderboard <span id="lbLiveDot" class="ml-2 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-600/20 text-emerald-300 align-middle"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Live</span></h2>
                 <div class="space-y-3" id="leaderboardList">
