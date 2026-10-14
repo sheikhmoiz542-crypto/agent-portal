@@ -520,7 +520,7 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
         db.get(`SELECT value FROM meta WHERE key = 'schedule_range'`, (err, metaRow) => {
             const scheduleRange = metaRow ? metaRow.value : 'Current Week Schedule';
 
-            db.get(`SELECT COUNT(*) as count FROM links WHERE username = ? AND date = ? AND COALESCE(is_followup,0) = 0`, [user.username, shiftDate], (err, row) => {
+            db.get(`SELECT COUNT(*) as count FROM links WHERE username = ? AND date = ?`, [user.username, shiftDate], (err, row) => {
                 const userLinksCount = row ? row.count : 0;
 
                 db.all(`SELECT full_name, SUM(CASE WHEN COALESCE(is_followup,0)=0 THEN 1 ELSE 0 END) as count, SUM(CASE WHEN COALESCE(is_followup,0)=1 THEN 1 ELSE 0 END) as followups FROM links WHERE date = ? GROUP BY username ORDER BY count DESC`, [shiftDate], (err, leaderboard) => {
