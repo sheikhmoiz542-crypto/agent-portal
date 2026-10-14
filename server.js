@@ -703,6 +703,15 @@ app.post('/toggle-break/:username', blockAgentOnMobile, (req, res) => {
     res.redirect(`/agent/${requestedUsername}`);
 });
 
+// Owner-only database backup download (migration / offsite backup).
+// Streams the live SQLite file; the downloader gets a dated .db copy.
+app.get('/backup', requireOwner, (req, res) => {
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.download(DB_PATH, `shift-desk-backup-${stamp}.db`, (err) => {
+        if (err && !res.headersSent) res.status(500).send('Backup download failed.');
+    });
+});
+
 app.get('/manager', requireManager, (req, res) => {
     const { user: loggedUser, role: loggedRole } = getAuth(req);
     const isOwner = loggedRole === 'owner';
