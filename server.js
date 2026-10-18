@@ -527,7 +527,7 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
             db.get(`SELECT COUNT(*) as count FROM links WHERE username = ? AND date = ?`, [user.username, shiftDate], (err, row) => {
                 const userLinksCount = row ? row.count : 0;
 
-                db.all(`SELECT full_name, SUM(CASE WHEN COALESCE(is_followup,0)=0 THEN 1 ELSE 0 END) as count, SUM(CASE WHEN COALESCE(is_followup,0)=1 THEN 1 ELSE 0 END) as followups FROM links WHERE date = ? GROUP BY username ORDER BY count DESC`, [shiftDate], (err, leaderboard) => {
+                db.all(`SELECT full_name, SUM(CASE WHEN COALESCE(is_followup,0)=0 THEN 1 ELSE 0 END) as count, SUM(CASE WHEN COALESCE(is_followup,0)=1 THEN 1 ELSE 0 END) as followups FROM links WHERE date = ? GROUP BY username ORDER BY (count + followups) DESC`, [shiftDate], (err, leaderboard) => {
                     db.all(`SELECT id, link, is_followup FROM links WHERE username = ? AND date = ? ORDER BY id DESC`, [user.username, shiftDate], (err, recentLinks) => {
                         db.get(`SELECT value FROM meta WHERE key = ?`, [`recovery_code_${requestedUsername}`], (err, rcRow) => {
                         const ownPage = loggedRole === 'agent' && loggedUser === requestedUsername;
@@ -995,7 +995,7 @@ app.get('/api/leaderboard-live', requireLogin, (req, res) => {
     db.all(`SELECT username, full_name,
             SUM(CASE WHEN COALESCE(is_followup,0)=0 THEN 1 ELSE 0 END) AS count,
             SUM(CASE WHEN COALESCE(is_followup,0)=1 THEN 1 ELSE 0 END) AS followups
-            FROM links WHERE date = ? GROUP BY username ORDER BY count DESC`, [getShiftDate()], (err, rows) => {
+            FROM links WHERE date = ? GROUP BY username ORDER BY (count + followups) DESC`, [getShiftDate()], (err, rows) => {
         res.json({ ok: true, agents: rows || [] });
     });
 });
