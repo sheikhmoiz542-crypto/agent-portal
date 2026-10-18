@@ -1,0 +1,67 @@
+<% /* Shared report results table. Expects `report` from getReportData(). */ %>
+<div class="overflow-x-auto">
+    <table class="w-full text-left border-collapse text-sm mb-6">
+        <thead>
+            <tr class="bg-slate-900 text-slate-400 border-b border-slate-700">
+                <th class="p-3">Agent</th>
+                <th class="p-3 text-center">Links</th>
+                <th class="p-3 text-center">Follow-ups</th>
+                <th class="p-3 text-center">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% Object.keys(report.agents).forEach(un => { const a = report.agents[un]; %>
+                <tr class="border-b border-slate-750 hover:bg-slate-750/50">
+                    <td class="p-3 font-bold text-indigo-300 whitespace-nowrap"><%= a.full_name %></td>
+                    <td class="p-3 text-center text-slate-200"><%= a.links %></td>
+                    <td class="p-3 text-center text-amber-300"><%= a.followups %></td>
+                    <td class="p-3 text-center font-bold text-slate-100"><%= a.total %></td>
+                </tr>
+            <% }) %>
+        </tbody>
+        <tfoot>
+            <tr class="bg-indigo-950/60 border-t-2 border-indigo-500 font-bold">
+                <td class="p-3 text-indigo-300">Team Total</td>
+                <td class="p-3 text-center text-slate-200"><%= report.teamLinks %></td>
+                <td class="p-3 text-center text-amber-300"><%= report.teamFollowups %></td>
+                <td class="p-3 text-center text-slate-100"><%= report.teamTotal %></td>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+
+<% if (report.period !== 'daily') { %>
+    <h3 class="text-sm font-semibold text-slate-400 mb-2">Day-by-day breakdown</h3>
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse text-sm">
+            <thead>
+                <tr class="bg-slate-900 text-slate-400 border-b border-slate-700">
+                    <th class="p-3">Date</th>
+                    <th class="p-3">Agent</th>
+                    <th class="p-3 text-center">Links</th>
+                    <th class="p-3 text-center">Follow-ups</th>
+                    <th class="p-3 text-center">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% let anyRows = false; %>
+                <% report.dates.forEach(d => { %>
+                    <% Object.keys(report.agents).forEach(un => { const a = report.agents[un]; const dd = a.days[d]; %>
+                        <% if (dd && dd.total > 0) { anyRows = true; %>
+                            <tr class="border-b border-slate-750 hover:bg-slate-750/50">
+                                <td class="p-3 text-slate-400 whitespace-nowrap"><%= d %></td>
+                                <td class="p-3 font-medium text-slate-200 whitespace-nowrap"><%= a.full_name %></td>
+                                <td class="p-3 text-center text-slate-200"><%= dd.links %></td>
+                                <td class="p-3 text-center text-amber-300"><%= dd.followups %></td>
+                                <td class="p-3 text-center font-bold text-slate-100"><%= dd.total %></td>
+                            </tr>
+                        <% } %>
+                    <% }) %>
+                <% }) %>
+                <% if (!anyRows) { %>
+                    <tr><td colspan="5" class="p-3 text-center text-slate-500">No links logged in this period.</td></tr>
+                <% } %>
+            </tbody>
+        </table>
+    </div>
+<% } %>

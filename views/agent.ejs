@@ -12,6 +12,9 @@
             <p class="text-xs text-slate-500 mt-0.5">Welcome, <%= fullName %></p>
         </div>
         <div class="flex gap-2">
+            <% if (typeof isSupervisor !== 'undefined' && isSupervisor) { %>
+            <a href="/supervisor" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded text-sm font-semibold transition">Supervisor Dashboard</a>
+            <% } %>
             <button onclick="openPwModal()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition">Change Password</button>
             <a href="/logout" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded text-sm font-semibold transition">Logout</a>
         </div>
