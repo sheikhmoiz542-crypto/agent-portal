@@ -157,6 +157,10 @@ db.serialize(() => {
     });
 });
 
+// One-time migration: supervisor flag for agents (read-only team stats + reports).
+// Ignored if the column already exists.
+db.run(`ALTER TABLE users ADD COLUMN is_supervisor INTEGER DEFAULT 0`, () => {});
+
 app.set('view engine', 'ejs');
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
@@ -548,7 +552,8 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
                             breakExceed: breakExceed,
                             shiftInfo: getShiftProgressInfo(schedFor, schedNow),
                             recentLinks: recentLinks || [],
-                            recoveryCode: recoveryCode
+                            recoveryCode: recoveryCode,
+                            isSupervisor: !!user.is_supervisor
                         });
                         });
                     });
@@ -710,6 +715,150 @@ app.get('/backup', requireOwner, (req, res) => {
     res.download(DB_PATH, `shift-desk-backup-${stamp}.db`, (err) => {
         if (err && !res.headersSent) res.status(500).send('Backup download failed.');
     });
+});
+
+// --- Supervisor access (read-only team stats + reports) ---
+// Supervisors are agents with an extra read-only view. They cannot change
+// schedules, manage agents, reset passwords, or touch owner/manager accounts.
+
+// Shared report builder: per-agent link counts for a daily/weekly/monthly window.
+// usernameOrAll: 'ALL' or a single username. period: 'daily'|'weekly'|'monthly'.
+function getReportData(usernameOrAll, period, refDate, cb) {
+    let from, to, label;
+    if (period === 'weekly') {
+        from = getWeekStart(refDate);
+        to = addDaysStr(from, 6);
+        label = 'Week: ' + formatWeekLabel(from);
+    } else if (period === 'monthly') {
+        const ym = refDate.slice(0, 7);
+        const parts = ym.split('-').map(Number);
+        const lastDay = new Date(parts[0], parts[1], 0).getDate();
+        from = ym + '-01';
+        to = ym + '-' + String(lastDay).padStart(2, '0');
+        label = 'Month: ' + ym;
+    } else {
+        from = to = refDate;
+        label = 'Day: ' + refDate;
+    }
+    let userQ = `SELECT username, full_name FROM users WHERE role = 'agent'`;
+    const userP = [];
+    if (usernameOrAll !== 'ALL') { userQ += ` AND username = ?`; userP.push(usernameOrAll); }
+    userQ += ` ORDER BY full_name`;
+    db.all(userQ, userP, (err, agents) => {
+        let linkQ = `SELECT username, date,
+                SUM(CASE WHEN COALESCE(is_followup,0)=0 THEN 1 ELSE 0 END) AS links,
+                SUM(CASE WHEN COALESCE(is_followup,0)=1 THEN 1 ELSE 0 END) AS followups,
+                COUNT(*) AS total
+            FROM links WHERE date >= ? AND date <= ?`;
+        const linkP = [from, to];
+        if (usernameOrAll !== 'ALL') { linkQ += ` AND username = ?`; linkP.push(usernameOrAll); }
+        linkQ += ` GROUP BY username, date`;
+        db.all(linkQ, linkP, (err2, rows) => {
+            const byAgent = {};
+            (agents || []).forEach(a => { byAgent[a.username] = { full_name: a.full_name, links: 0, followups: 0, total: 0, days: {} }; });
+            (rows || []).forEach(r => {
+                if (!byAgent[r.username]) return;
+                const ag = byAgent[r.username];
+                ag.links += r.links; ag.followups += r.followups; ag.total += r.total;
+                ag.days[r.date] = { links: r.links, followups: r.followups, total: r.total };
+            });
+            const dates = [];
+            for (let d = from; d <= to; d = addDaysStr(d, 1)) dates.push(d);
+            let tL = 0, tF = 0, tT = 0;
+            Object.values(byAgent).forEach(a => { tL += a.links; tF += a.followups; tT += a.total; });
+            cb({ agents: byAgent, dates, from, to, label, period, teamLinks: tL, teamFollowups: tF, teamTotal: tT });
+        });
+    });
+}
+
+// Team snapshot for the supervisor dashboard: today / this week / this month per agent.
+function getTeamSnapshot(cb) {
+    const today = getShiftDate();
+    const weekStart = getWeekStart(new Date());
+    const weekEnd = addDaysStr(weekStart, 6);
+    const monthStart = today.slice(0, 7) + '-01';
+    db.all(`SELECT u.username, u.full_name,
+            SUM(CASE WHEN l.date = ? AND COALESCE(l.is_followup,0)=0 THEN 1 ELSE 0 END) AS d_links,
+            SUM(CASE WHEN l.date = ? AND COALESCE(l.is_followup,0)=1 THEN 1 ELSE 0 END) AS d_followups,
+            SUM(CASE WHEN l.date >= ? AND l.date <= ? AND COALESCE(l.is_followup,0)=0 THEN 1 ELSE 0 END) AS w_links,
+            SUM(CASE WHEN l.date >= ? AND l.date <= ? AND COALESCE(l.is_followup,0)=1 THEN 1 ELSE 0 END) AS w_followups,
+            SUM(CASE WHEN l.date >= ? AND l.date <= ? AND COALESCE(l.is_followup,0)=0 THEN 1 ELSE 0 END) AS m_links,
+            SUM(CASE WHEN l.date >= ? AND l.date <= ? AND COALESCE(l.is_followup,0)=1 THEN 1 ELSE 0 END) AS m_followups
+        FROM users u LEFT JOIN links l ON l.username = u.username
+        WHERE u.role = 'agent'
+        GROUP BY u.username, u.full_name ORDER BY u.full_name`,
+        [today, today, weekStart, weekEnd, weekStart, weekEnd, monthStart, today, monthStart, today],
+        (err, rows) => cb(rows || []));
+}
+
+function parseReportQuery(req) {
+    const rAgent = req.query.agent || 'ALL';
+    const rPeriod = ['daily', 'weekly', 'monthly'].includes(req.query.period) ? req.query.period : 'daily';
+    const rDate = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || '') ? req.query.date : getTodayStr();
+    const wantReport = !!(req.query.agent || req.query.period || req.query.date);
+    return { rAgent, rPeriod, rDate, wantReport };
+}
+
+app.post('/toggle-supervisor', requireManager, (req, res) => {
+    const username = (req.body.username || '').trim();
+    if (!username) return res.redirect('/manager?error=' + encodeURIComponent('Missing username.'));
+    db.get(`SELECT username, full_name, role, is_supervisor FROM users WHERE username = ?`, [username], (err, u) => {
+        if (err || !u || u.role !== 'agent') {
+            return res.redirect('/manager?error=' + encodeURIComponent('Agent not found.'));
+        }
+        const next = u.is_supervisor ? 0 : 1;
+        db.run(`UPDATE users SET is_supervisor = ? WHERE username = ?`, [next, username], () => {
+            const msg = next ? `${u.full_name} is now a supervisor.` : `${u.full_name} is no longer a supervisor.`;
+            res.redirect('/manager?success=' + encodeURIComponent(msg));
+        });
+    });
+});
+
+app.get('/supervisor', requireLogin, blockAgentOnMobile, (req, res) => {
+    const { user: loggedUser, role: loggedRole } = getAuth(req);
+    db.get(`SELECT full_name, role, is_supervisor FROM users WHERE username = ?`, [loggedUser], (err, me) => {
+        const isSup = !!(me && me.is_supervisor);
+        if (!(loggedRole === 'owner' || loggedRole === 'manager' || isSup)) {
+            return res.redirect(loggedRole === 'agent' ? `/agent/${loggedUser}` : '/login');
+        }
+        getTeamSnapshot((snapshot) => {
+            const { rAgent, rPeriod, rDate, wantReport } = parseReportQuery(req);
+            const renderPage = (report) => {
+                db.all(`SELECT username, full_name FROM users WHERE role = 'agent' ORDER BY full_name`, (err2, agents) => {
+                    res.render('supervisor', {
+                        viewerName: me ? me.full_name : loggedUser,
+                        userRole: loggedRole,
+                        backUrl: loggedRole === 'agent' ? `/agent/${loggedUser}` : '/manager',
+                        snapshot: snapshot,
+                        agents: agents || [],
+                        rAgent, rPeriod, rDate, wantReport, report,
+                        success: req.query.success || null,
+                        error: req.query.error || null
+                    });
+                });
+            };
+            if (wantReport) getReportData(rAgent, rPeriod, rDate, renderPage);
+            else renderPage(null);
+        });
+    });
+});
+
+app.get('/manager/reports', requireManager, (req, res) => {
+    const { user: loggedUser, role: loggedRole } = getAuth(req);
+    const { rAgent, rPeriod, rDate, wantReport } = parseReportQuery(req);
+    const renderPage = (report) => {
+        db.all(`SELECT username, full_name FROM users WHERE role = 'agent' ORDER BY full_name`, (err, agents) => {
+            res.render('reports', {
+                agents: agents || [],
+                isOwner: loggedRole === 'owner',
+                rAgent, rPeriod, rDate, wantReport, report,
+                success: req.query.success || null,
+                error: req.query.error || null
+            });
+        });
+    };
+    if (wantReport) getReportData(rAgent, rPeriod, rDate, renderPage);
+    else renderPage(null);
 });
 
 app.get('/manager', requireManager, (req, res) => {
