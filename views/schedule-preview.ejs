@@ -49,6 +49,15 @@
                         </tr>
                     <% }) %>
                 </tbody>
+                <tfoot>
+                    <tr class="bg-indigo-950/60 border-t-2 border-indigo-500">
+                        <td class="p-3 font-bold text-indigo-300 whitespace-nowrap">Agents on Shift</td>
+                        <% days.forEach(d => { %>
+                            <% const onShift = agents.filter(a => a[d] && a[d] !== 'OFF').length; %>
+                            <td class="p-3 text-center font-bold <%= onShift > 0 ? 'text-indigo-200' : 'text-slate-600' %>"><%= onShift %></td>
+                        <% }) %>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </div>
