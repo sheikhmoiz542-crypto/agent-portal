@@ -189,9 +189,12 @@ function requireOwner(req, res, next) {
 function isMobileUA(ua) {
     return /mobi|android|iphone|ipod|ipad|tablet|blackberry|iemobile|opera mini|windows phone/i.test(ua || '');
 }
+// Agents allowed to use the portal from a phone (everyone else stays desktop-only).
+// To allow another agent later, just add their username to this list.
+const MOBILE_ALLOWED_AGENTS = ['jared'];
 function blockAgentOnMobile(req, res, next) {
-    const { role } = getAuth(req);
-    if (role === 'agent' && isMobileUA(req.get('User-Agent'))) {
+    const { user, role } = getAuth(req);
+    if (role === 'agent' && !MOBILE_ALLOWED_AGENTS.includes(user) && isMobileUA(req.get('User-Agent'))) {
         return res.status(403).render('desktop-only');
     }
     next();
@@ -436,7 +439,7 @@ app.post('/login', (req, res) => {
             return res.render('login', { error: 'Invalid username or password' });
         }
 
-        if (user.role === 'agent' && isMobileUA(req.get('User-Agent'))) {
+        if (user.role === 'agent' && !MOBILE_ALLOWED_AGENTS.includes(user.username) && isMobileUA(req.get('User-Agent'))) {
             return res.render('login', { error: "This page isn't supported on mobile devices." });
         }
 
