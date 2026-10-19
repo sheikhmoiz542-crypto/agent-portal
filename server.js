@@ -201,6 +201,21 @@ function blockAgentOnMobile(req, res, next) {
     next();
 }
 
+// Mobile block with a supervisor exemption: agents flagged is_supervisor may
+// open the read-only supervisor dashboard from their phone; every other agent
+// stays desktop-only. Owners/managers were never blocked.
+function blockNonSupervisorOnMobile(req, res, next) {
+    const { user, role } = getAuth(req);
+    if (role === 'agent' && isMobileUA(req.get('User-Agent'))) {
+        db.get(`SELECT is_supervisor FROM users WHERE username = ?`, [user], (err, u) => {
+            if (!err && u && u.is_supervisor) return next();
+            return res.status(403).render('desktop-only');
+        });
+        return;
+    }
+    next();
+}
+
 // One-time-style account recovery code for the Owner (shown on the owner
 // dashboard; usable on the "Forgot password?" page if the owner is locked out).
 // 12 chars from an unambiguous alphabet: ~60 bits of entropy.
@@ -440,7 +455,9 @@ app.post('/login', (req, res) => {
             return res.render('login', { error: 'Invalid username or password' });
         }
 
-        if (user.role === 'agent' && isMobileUA(req.get('User-Agent'))) {
+        // Supervisors are exempt from the agent mobile block: they may log in
+        // from their phone to use the read-only supervisor dashboard.
+        if (user.role === 'agent' && !user.is_supervisor && isMobileUA(req.get('User-Agent'))) {
             return res.render('login', { error: "This page isn't supported on mobile devices." });
         }
 
@@ -454,6 +471,8 @@ app.post('/login', (req, res) => {
 
         if (user.role === 'owner' || user.role === 'manager') {
             res.redirect('/manager');
+        } else if (user.is_supervisor) {
+            res.redirect('/supervisor');
         } else {
             res.redirect(`/agent/${user.username}`);
         }
@@ -874,7 +893,7 @@ app.post('/toggle-supervisor', requireManager, (req, res) => {
     });
 });
 
-app.get('/supervisor', requireLogin, blockAgentOnMobile, (req, res) => {
+app.get('/supervisor', requireLogin, blockNonSupervisorOnMobile, (req, res) => {
     const { user: loggedUser, role: loggedRole } = getAuth(req);
     db.get(`SELECT full_name, role, is_supervisor FROM users WHERE username = ?`, [loggedUser], (err, me) => {
         const isSup = !!(me && me.is_supervisor);
