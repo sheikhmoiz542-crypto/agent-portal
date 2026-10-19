@@ -27,8 +27,8 @@
 
         <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 shadow-lg">
             <h2 class="text-lg font-semibold mb-1 text-indigo-300">Pull a Report</h2>
-            <p class="text-xs text-slate-500 mb-4">Daily, weekly or monthly — for one agent or the whole team, including past dates.</p>
-            <form method="GET" action="/manager/reports" class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+            <p class="text-xs text-slate-500 mb-4">Daily, weekly, monthly or a custom date range — for one agent or the whole team, including past dates.</p>
+            <form method="GET" action="/manager/reports" class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
                 <div>
                     <label class="block text-sm text-slate-400 mb-1">Agent</label>
                     <select name="agent" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
@@ -44,11 +44,20 @@
                         <option value="daily" <%= rPeriod === 'daily' ? 'selected' : '' %>>Daily</option>
                         <option value="weekly" <%= rPeriod === 'weekly' ? 'selected' : '' %>>Weekly</option>
                         <option value="monthly" <%= rPeriod === 'monthly' ? 'selected' : '' %>>Monthly</option>
+                        <option value="custom" <%= rPeriod === 'custom' ? 'selected' : '' %>>Custom range</option>
                     </select>
                 </div>
                 <div>
                     <label class="block text-sm text-slate-400 mb-1">Date</label>
                     <input type="date" name="date" value="<%= rDate %>" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">From <span class="text-slate-600">(custom)</span></label>
+                    <input type="date" name="from" value="<%= rFrom %>" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">To <span class="text-slate-600">(custom)</span></label>
+                    <input type="date" name="to" value="<%= rTo %>" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
                 </div>
                 <div>
                     <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 px-6 py-2 rounded font-semibold transition">Generate Report</button>
