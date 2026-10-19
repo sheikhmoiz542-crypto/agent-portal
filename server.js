@@ -601,7 +601,7 @@ app.post('/submit-link/:username', blockAgentOnMobile, (req, res) => {
         // Hard duplicate block: this agent already logged this link in their own shift.
         isOwnShiftDuplicate(requestedUsername, link, (dup) => {
             if (dup) {
-                return res.redirect(`/agent/${requestedUsername}?error=` + encodeURIComponent('This link is already submitted in this shift.'));
+                return res.redirect(`/agent/${requestedUsername}?error=` + encodeURIComponent('Duplicate link \u2014 already submitted.'));
             }
             db.run(`INSERT INTO links (username, full_name, link, date, submitted_at, is_followup) VALUES (?, ?, ?, ?, ?, 0)`,
                 [user.username, user.full_name, link, shiftDate, Date.now()], (err) => {
@@ -683,7 +683,7 @@ function checkFollowupCooldown(username, link, cb) {
             const h = Math.floor(totalMin / 60);
             const m = totalMin % 60;
             const when = h > 0 ? `${h}h ${m}m` : `${m}m`;
-            cb(`This link was already followed up within the last 6 hours. Try again in ${when}.`);
+            cb(`Follow-up on hold \u2014 try again in ${when}.`);
         });
 }
 
