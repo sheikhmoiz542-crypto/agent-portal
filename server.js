@@ -577,16 +577,23 @@ app.post('/submit-link/:username', blockAgentOnMobile, (req, res) => {
     db.get(`SELECT * FROM users WHERE username = ?`, [requestedUsername], (err, user) => {
         if (!user) return res.redirect('/login');
 
-        db.run(`INSERT INTO links (username, full_name, link, date, submitted_at, is_followup) VALUES (?, ?, ?, ?, ?, 0)`,
-            [user.username, user.full_name, link, shiftDate, Date.now()], (err) => {
-            res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Link successfully logged!'));
+        // Hard duplicate block: this agent already logged this link in their own shift.
+        isOwnShiftDuplicate(requestedUsername, link, (dup) => {
+            if (dup) {
+                return res.redirect(`/agent/${requestedUsername}?error=` + encodeURIComponent('Duplicate link \u2014 already submitted.'));
+            }
+            db.run(`INSERT INTO links (username, full_name, link, date, submitted_at, is_followup) VALUES (?, ?, ?, ?, ?, 0)`,
+                [user.username, user.full_name, link, shiftDate, Date.now()], (err) => {
+                res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Link successfully logged!'));
+            });
         });
     });
 });
 
 // Log a follow-up link via the Follow Up button (same form, different endpoint).
 // Follow-ups are tracked separately: they don't count toward link totals and
-// skip the duplicate check (a follow-up is inherently a re-post of a link).
+// skip the "already submitted" block (a follow-up is inherently a re-post),
+// but the same agent cannot follow up the same link twice within 6 hours.
 app.post('/submit-followup/:username', blockAgentOnMobile, (req, res) => {
     const requestedUsername = req.params.username;
     const { user: loggedUser } = getAuth(req);
@@ -601,12 +608,63 @@ app.post('/submit-followup/:username', blockAgentOnMobile, (req, res) => {
     db.get(`SELECT * FROM users WHERE username = ?`, [requestedUsername], (err, user) => {
         if (!user) return res.redirect('/login');
 
-        db.run(`INSERT INTO links (username, full_name, link, date, submitted_at, is_followup) VALUES (?, ?, ?, ?, ?, 1)`,
-            [user.username, user.full_name, link, shiftDate, Date.now()], (err) => {
-            res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Follow-up logged!') + `&followup=1`);
+        checkFollowupCooldown(requestedUsername, link, (coolErr) => {
+            if (coolErr) {
+                return res.redirect(`/agent/${requestedUsername}?error=` + encodeURIComponent(coolErr) + `&followup=1`);
+            }
+            db.run(`INSERT INTO links (username, full_name, link, date, submitted_at, is_followup) VALUES (?, ?, ?, ?, ?, 1)`,
+                [user.username, user.full_name, link, shiftDate, Date.now()], (err) => {
+                res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Follow-up logged!') + `&followup=1`);
+            });
         });
     });
 });
+
+// Per-agent duplicate check for the current shift: has this agent already
+// logged this exact link (normal or follow-up) since their shift started?
+// cb(true/false). Everyone's account is separate — other agents don't matter.
+function isOwnShiftDuplicate(username, link, cb) {
+    if (!link) return cb(false);
+    const now = new Date();
+    loadSchedFor(username, now, (schedFor) => {
+        db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, user) => {
+            if (err || !user) return cb(false);
+            const shiftStartMs = getAgentShiftStartMs(schedFor, now);
+            if (shiftStartMs === null) {
+                // No usable schedule (OFF / unparseable): fall back to the system shift date
+                const shiftDate = getShiftDate();
+                db.get(`SELECT id FROM links WHERE link = ? AND username = ? AND date = ?`,
+                    [link, username, shiftDate], (err, row) => cb(!!row));
+                return;
+            }
+            // Same agent + same link + logged since this agent's shift started.
+            // (The IS NULL branch covers links saved before submitted_at existed.)
+            db.get(`SELECT id FROM links WHERE link = ? AND username = ?
+                    AND (submitted_at >= ? OR (submitted_at IS NULL AND date = ?))`,
+                [link, username, shiftStartMs, getShiftDate()], (err, row) => cb(!!row));
+        });
+    });
+}
+
+// 6-hour per-agent follow-up cooldown: the same agent cannot follow up the
+// same link again within 6 hours of their own last follow-up of it.
+// Other agents are unaffected. cb(errorMessage|null).
+function checkFollowupCooldown(username, link, cb) {
+    const SIX_H = 6 * 3600 * 1000;
+    db.get(`SELECT MAX(submitted_at) AS last FROM links
+            WHERE username = ? AND link = ? AND is_followup = 1 AND submitted_at IS NOT NULL`,
+        [username, link], (err, row) => {
+            const last = row && row.last;
+            if (!last) return cb(null);
+            const wait = SIX_H - (Date.now() - last);
+            if (wait <= 0) return cb(null);
+            const totalMin = Math.ceil(wait / 60000);
+            const h = Math.floor(totalMin / 60);
+            const m = totalMin % 60;
+            const when = h > 0 ? `${h}h ${m}m` : `${m}m`;
+            cb(`Follow-up on hold \u2014 try again in ${when}.`);
+        });
+}
 
 // Live duplicate check for the agent link form (same agent, current shift)
 app.get('/api/check-duplicate', requireLogin, blockAgentOnMobile, (req, res) => {
@@ -614,25 +672,7 @@ app.get('/api/check-duplicate', requireLogin, blockAgentOnMobile, (req, res) => 
     if (loggedRole !== 'agent') return res.json({ duplicate: false });
     const link = req.query.link || '';
     if (!link) return res.json({ duplicate: false });
-    const dupNow = new Date();
-    loadSchedFor(loggedUser, dupNow, (schedFor) => {
-    db.get(`SELECT * FROM users WHERE username = ?`, [loggedUser], (err, user) => {
-        if (err || !user) return res.json({ duplicate: false });
-        const shiftStartMs = getAgentShiftStartMs(schedFor, dupNow);
-        if (shiftStartMs === null) {
-            // No usable schedule (OFF / unparseable): fall back to the system shift date
-            const shiftDate = getShiftDate();
-            db.get(`SELECT id FROM links WHERE link = ? AND username = ? AND date = ?`,
-                [link, loggedUser, shiftDate], (err, row) => res.json({ duplicate: !!row }));
-            return;
-        }
-        // Same agent + same link + submitted since this agent's shift started.
-        // (The IS NULL branch covers links saved before submitted_at existed.)
-        db.get(`SELECT id FROM links WHERE link = ? AND username = ?
-                AND (submitted_at >= ? OR (submitted_at IS NULL AND date = ?))`,
-            [link, loggedUser, shiftStartMs, getShiftDate()], (err, row) => res.json({ duplicate: !!row }));
-    });
-    }); // end loadSchedFor
+    isOwnShiftDuplicate(loggedUser, link, (dup) => res.json({ duplicate: dup }));
 });
 
 // Delete one of the agent's own links (e.g. wrongly entered)
