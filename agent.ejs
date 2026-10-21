@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Agent Portal - <%= fullName %></title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen">
+    <nav class="bg-slate-800 border-b border-slate-700 px-6 py-4 flex justify-between items-center">
+        <div>
+            <h1 class="text-xl font-bold text-indigo-400">Agent Portal</h1>
+            <p class="text-xs text-slate-500 mt-0.5">Welcome, <%= fullName %></p>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="openPwModal()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition">Change Password</button>
+            <a href="/logout" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded text-sm font-semibold transition">Logout</a>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto p-6 grid grid-cols-1 md:grid-cols-5 gap-6">
+        <!-- Left: Submit Link & Breaks -->
+        <div class="md:col-span-3 space-y-6">
+            <% if (success) { %>
+                <div class="<%= isFollowupMsg ? 'bg-amber-500/20 border-amber-500 text-amber-300' : 'bg-green-500/20 border-green-500 text-green-300' %> border p-3 rounded text-sm"><%= success %></div>
+            <% } %>
+            <% if (error) { %>
+                <div class="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded text-sm"><%= error %></div>
+            <% } %>
+
+            <!-- Submit Link Card -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 text-indigo-300">Submit Work Link</h2>
+                <form action="/submit-link/<%= username %>" method="POST" class="flex gap-3">
+                    <input type="url" id="linkInput" name="link" placeholder="Paste your link here..." required autocomplete="off" class="flex-1 bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 px-6 py-2 rounded font-semibold transition">Submit</button>
+                    <button type="submit" formaction="/submit-followup/<%= username %>" class="bg-amber-500 hover:bg-amber-400 text-slate-900 px-6 py-2 rounded font-semibold transition">Follow Up</button>
+                </form>
+                <div id="dupNote" class="hidden mt-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-600/30 rounded px-3 py-2">Duplicate link — already submitted in this shift.</div>
+                <script>
+                (function() {
+                    var input = document.getElementById('linkInput');
+                    var note = document.getElementById('dupNote');
+                    if (!input || !note) return;
+                    var t = null;
+                    input.addEventListener('input', function() {
+                        clearTimeout(t);
+                        if (!input.value.trim()) { note.classList.add('hidden'); return; }
+                        t = setTimeout(function() {
+                            fetch('/api/check-duplicate?link=' + encodeURIComponent(input.value))
+                                .then(function(r) { return r.json(); })
+                                .then(function(d) { note.classList.toggle('hidden', !d.duplicate); })
+                                .catch(function() { note.classList.add('hidden'); });
+                        }, 400);
+                    });
+                })();
+                </script>
+                <div class="mt-4 text-sm text-slate-400">Total Links Logged Today (Shift Reset at 12:00 PM): <span class="font-bold text-white text-lg"><%= userLinksCount %></span></div>
+            </div>
+
+            <!-- Break Management: pick one break at a time -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-indigo-300">Take a Break</h2>
+                    <span class="text-xs text-slate-500">Breaks refresh every shift</span>
+                </div>
+
+                <%
+                const totalBreakRem = Math.max(0, b1Rem + b2Rem + b3Rem - (breakExceed || 0));
+                const breakPct = Math.round(totalBreakRem / 60 * 100);
+                const breakColor = totalBreakRem >= 30 ? '#10b981' : (totalBreakRem >= 10 ? '#f59e0b' : '#ef4444');
+                const breakOffset = (326.73 * (1 - breakPct / 100)).toFixed(1);
+                const sInfo = (typeof shiftInfo !== 'undefined' && shiftInfo) ? shiftInfo : { state: 'off' };
+                let shiftPct = 0, shiftStroke = '#475569', shiftMain = 'OFF', shiftSub = 'no shift';
+                if (sInfo.state === 'in') {
+                    shiftPct = Math.max(0, Math.min(100, (Date.now() - sInfo.startMs) / (sInfo.endMs - sInfo.startMs) * 100));
+                    shiftStroke = '#6366f1';
+                    shiftMain = Math.floor(shiftPct) + '%';
+                    shiftSub = 'of shift';
+                } else if (sInfo.state === 'ended') {
+                    shiftPct = 100; shiftStroke = '#10b981'; shiftMain = '100%'; shiftSub = 'shift done';
+                } else if (sInfo.state === 'upcoming') {
+                    shiftPct = 0; shiftStroke = '#475569'; shiftMain = '0%'; shiftSub = 'starts ' + sInfo.startLabel;
+                }
+                const shiftOffset = (326.73 * (1 - shiftPct / 100)).toFixed(1);
+                %>
+
+                <div class="flex items-center justify-center gap-10 sm:gap-14 mb-4">
+                    <div class="text-center">
+                        <div class="relative w-28 h-28 mx-auto">
+                            <svg viewBox="0 0 120 120" class="w-28 h-28">
+                                <circle cx="60" cy="60" r="52" fill="none" stroke="#1e293b" stroke-width="11"/>
+                                <circle cx="60" cy="60" r="52" fill="none" stroke="<%= breakColor %>" stroke-width="11"
+                                    stroke-linecap="round" stroke-dasharray="326.73"
+                                    stroke-dashoffset="<%= breakOffset %>" transform="rotate(-90 60 60)"/>
+                            </svg>
+                            <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                <span class="text-2xl font-bold text-white tabular-nums"><%= totalBreakRem %></span>
+                                <span class="text-[10px] text-slate-500">of 60 min</span>
+                            </div>
+                        </div>
+                        <div class="text-xs text-slate-400 mt-2 font-semibold tracking-wide">BREAK LEFT</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="relative w-28 h-28 mx-auto">
+                            <svg viewBox="0 0 120 120" class="w-28 h-28">
+                                <circle cx="60" cy="60" r="52" fill="none" stroke="#1e293b" stroke-width="11"/>
+                                <circle id="shiftRingFg" cx="60" cy="60" r="52" fill="none" stroke="<%= shiftStroke %>" stroke-width="11"
+                                    stroke-linecap="round" stroke-dasharray="326.73"
+                                    stroke-dashoffset="<%= shiftOffset %>" transform="rotate(-90 60 60)"/>
+                            </svg>
+                            <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                <span id="shiftRingPct" class="text-2xl font-bold text-white tabular-nums"><%= shiftMain %></span>
+                                <span id="shiftRingSub" class="text-[10px] text-slate-500"><%= shiftSub %></span>
+                            </div>
+                        </div>
+                        <div class="text-xs text-slate-400 mt-2 font-semibold tracking-wide">SHIFT PROGRESS</div>
+                    </div>
+                </div>
+
+                <% if (sInfo.state === 'in') { %>
+                <script>
+                (function() {
+                    var start = <%= sInfo.startMs %>;
+                    var end = <%= sInfo.endMs %>;
+                    var ring = document.getElementById('shiftRingFg');
+                    var txt = document.getElementById('shiftRingPct');
+                    var sub = document.getElementById('shiftRingSub');
+                    var CIRC = 326.73;
+                    function tick() {
+                        var now = Date.now();
+                        var pct = Math.min(100, Math.max(0, (now - start) / (end - start) * 100));
+                        ring.style.strokeDashoffset = (CIRC * (1 - pct / 100)).toFixed(1);
+                        txt.innerText = Math.floor(pct) + '%';
+                        if (pct >= 100) {
+                            ring.setAttribute('stroke', '#10b981');
+                            if (sub) sub.innerText = 'shift done';
+                        }
+                    }
+                    tick();
+                    setInterval(tick, 1000);
+                })();
+                </script>
+                <% } %>
+
+                <p class="text-xs text-slate-500 mb-4 text-center">Choose one break, then start it. The timer keeps running even if you close this page.</p>
+                <% if (breaknotice) { %>
+                    <div class="bg-amber-500/20 border border-amber-500 text-amber-300 p-3 rounded text-sm mb-4"><%= breaknotice %></div>
+                <% } %>
+
+                <% if (breakStatus !== 'off') { %>
+                    <div class="bg-emerald-500/10 border border-emerald-500/50 p-4 rounded-lg">
+                        <div class="flex justify-between items-center mb-3">
+                            <div>
+                                <div id="breakStateLabel" class="text-[11px] text-emerald-300/70 uppercase tracking-wider">On break now</div>
+                                <div class="font-bold text-emerald-300"><%= breakStatus === 'break1' ? 'Break 1 · 30 min' : (breakStatus === 'break2' ? 'Break 2 · 15 min' : 'Break 3 · 15 min') %></div>
+                            </div>
+                            <div id="countdown" class="text-2xl font-bold text-emerald-400 tabular-nums">--:--</div>
+                        </div>
+                        <form action="/toggle-break/<%= username %>" method="POST">
+                            <input type="hidden" name="status" value="off">
+                            <button type="submit" class="w-full bg-red-600 hover:bg-red-500 py-2 rounded font-semibold transition text-sm">End Break</button>
+                        </form>
+                    </div>
+                <% } else { %>
+                    <form action="/toggle-break/<%= username %>" method="POST" onsubmit="return pickBreak()">
+                        <input type="hidden" name="status" id="breakChoice" value="">
+                        <div class="grid grid-cols-3 gap-3 mb-4">
+                            <% const breakOpts = [
+                                { id: 'break1', label: 'Break 1', mins: 30, rem: b1Rem },
+                                { id: 'break2', label: 'Break 2', mins: 15, rem: b2Rem },
+                                { id: 'break3', label: 'Break 3', mins: 15, rem: b3Rem }
+                            ]; %>
+                            <% breakOpts.forEach(b => { %>
+                                <button type="button" onclick="selectBreak('<%= b.id %>', this)" <%= b.rem <= 0 ? 'disabled' : '' %>
+                                    class="break-opt rounded-lg p-3 text-center border transition <%= b.rem <= 0 ? 'bg-slate-900 border-slate-800 opacity-40 cursor-not-allowed' : 'bg-slate-900 border-slate-700 hover:border-indigo-500 cursor-pointer' %>">
+                                    <div class="font-bold text-sm <%= b.rem <= 0 ? 'text-slate-500' : 'text-slate-200' %>"><%= b.label %></div>
+                                    <div class="text-[11px] text-indigo-400"><%= b.mins %> min</div>
+                                    <div class="text-[11px] mt-1 <%= b.rem <= 0 ? 'text-slate-600' : 'text-slate-400' %>"><%= b.rem %>m left</div>
+                                </button>
+                            <% }) %>
+                        </div>
+                        <button type="submit" id="startBreakBtn" disabled class="w-full py-2.5 rounded font-semibold transition text-sm bg-slate-700 text-slate-500 cursor-not-allowed">Select a break above to start</button>
+                    </form>
+                    <script>
+                        let chosenBreak = null;
+                        function selectBreak(id, el) {
+                            chosenBreak = id;
+                            document.querySelectorAll('.break-opt').forEach(o => o.classList.remove('border-indigo-500', 'bg-indigo-600/10'));
+                            el.classList.add('border-indigo-500', 'bg-indigo-600/10');
+                            const btn = document.getElementById('startBreakBtn');
+                            btn.disabled = false;
+                            btn.className = 'w-full py-2.5 rounded font-semibold transition text-sm bg-emerald-600 hover:bg-emerald-500 text-white';
+                            btn.innerText = 'Start Break';
+                        }
+                        function pickBreak() {
+                            if (!chosenBreak) return false;
+                            document.getElementById('breakChoice').value = chosenBreak;
+                            return true;
+                        }
+                    </script>
+                <% } %>
+            </div>
+
+            <!-- Recent Links -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 text-indigo-300">Your Recent Links Today</h2>
+                <div class="space-y-2 max-h-40 overflow-y-auto">
+                    <% if (recentLinks.length === 0) { %>
+                        <p class="text-sm text-slate-500">No links submitted yet today.</p>
+                    <% } else { %>
+                        <% recentLinks.forEach(item => { %>
+                            <div class="bg-slate-900 p-2 rounded text-sm border border-slate-750 flex items-center gap-2">
+                                <a href="<%= item.link %>" target="_blank" class="text-indigo-400 hover:underline truncate flex-1 min-w-0"><%= item.link %></a>
+                                <% if (item.is_followup) { %><span class="shrink-0 bg-amber-500/20 text-amber-300 border border-amber-600/40 px-1.5 py-0.5 rounded text-[10px] font-bold">follow-up</span><% } %>
+                                <form action="/delete-link/<%= username %>" method="POST" onsubmit="return confirm('Delete this link?');" class="shrink-0">
+                                    <input type="hidden" name="link_id" value="<%= item.id %>">
+                                    <button type="submit" title="Delete link" class="text-slate-500 hover:text-red-400 font-bold px-1 leading-none text-base">&times;</button>
+                                </form>
+                            </div>
+                        <% }) %>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Leaderboard & Schedule -->
+        <div class="md:col-span-2 space-y-6">
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 text-indigo-300">Today's Leaderboard <span id="lbLiveDot" class="ml-2 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-600/20 text-emerald-300 align-middle"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Live</span></h2>
+                <div class="space-y-3" id="leaderboardList">
+                    <% if (leaderboard.length === 0) { %>
+                        <p class="text-sm text-slate-500">No entries yet.</p>
+                    <% } else { %>
+                        <% leaderboard.forEach((entry, index) => { %>
+                            <div class="flex justify-between items-center bg-slate-900 p-3 rounded border border-slate-750">
+                                <span class="text-sm font-medium"><%= index + 1 %>. <%= entry.full_name %></span>
+                                <div class="flex gap-2 shrink-0">
+                                    <span class="bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded text-xs font-bold"><%= entry.count %> links</span>
+                                    <span class="bg-amber-500/30 text-amber-300 px-2.5 py-1 rounded text-xs font-bold"><%= entry.followups %> follow-ups</span>
+                                    <span class="bg-emerald-600/30 text-emerald-300 px-2.5 py-1 rounded text-xs font-bold"><%= (Number(entry.count) || 0) + (Number(entry.followups) || 0) %> total</span>
+                                </div>
+                            </div>
+                        <% }) %>
+                    <% } %>
+                </div>
+            </div>
+
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-lg font-semibold text-indigo-300">Current Week Schedule</h2>
+                </div>
+                <div class="text-xs text-indigo-400 font-semibold mb-3 bg-slate-900 p-2 rounded border border-slate-750 text-center"><%= scheduleRange %></div>
+                <div class="space-y-2 text-xs">
+                    <%
+                        const daysMap = [
+                            { key: 'mon', label: 'Monday' },
+                            { key: 'tue', label: 'Tuesday' },
+                            { key: 'wed', label: 'Wednesday' },
+                            { key: 'thu', label: 'Thursday' },
+                            { key: 'fri', label: 'Friday' },
+                            { key: 'sat', label: 'Saturday' },
+                            { key: 'sun', label: 'Sunday' }
+                        ];
+                    %>
+                    <% daysMap.forEach(d => { %>
+                        <div class="p-2.5 rounded flex justify-between items-center border <%= todayDayKey === d.key ? 'bg-indigo-600/20 border-indigo-500 text-white font-bold' : 'bg-slate-900 border-slate-750 text-slate-300' %>">
+                            <span><%= d.label %> <%= todayDayKey === d.key ? '(Today)' : '' %></span>
+                            <span class="<%= todayDayKey === d.key ? 'text-indigo-400' : 'text-slate-400' %>"><%= mySchedule[d.key] || 'OFF' %></span>
+                        </div>
+                    <% }) %>
+                </div>
+            </div>
+
+            <!-- Account Recovery -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-amber-600/30 shadow-lg">
+                <h2 class="text-lg font-semibold mb-1 text-amber-300">Account Recovery</h2>
+                <p class="text-xs text-slate-500 mb-4">Forgot your password? Use this code on the "Forgot password?" page. Keep it safe.</p>
+                <% if (recoveryCode) { %>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <code class="bg-slate-900 border border-amber-600/40 text-amber-200 font-mono font-bold tracking-widest px-3 py-2 rounded select-all"><%= recoveryCode %></code>
+                        <form action="/generate-recovery-code" method="POST" onsubmit="return confirm('Generate a new recovery code? The old one will stop working.');">
+                            <button type="submit" class="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded text-xs font-semibold transition">New Code</button>
+                        </form>
+                    </div>
+                <% } else { %>
+                    <form action="/generate-recovery-code" method="POST">
+                        <button type="submit" class="bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded text-sm font-semibold transition">Generate Recovery Code</button>
+                    </form>
+                <% } %>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div id="pwModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl w-full max-w-md p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-indigo-300">Change Password</h2>
+                <button type="button" onclick="closePwModal()" class="text-slate-500 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            <form action="/change-password" method="POST" class="space-y-3">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Current Password</label>
+                    <div class="relative">
+                        <input type="password" name="current_password" required class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
+                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">New Password</label>
+                    <div class="relative">
+                        <input type="password" name="new_password" required minlength="4" class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
+                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Confirm New Password</label>
+                    <div class="relative">
+                        <input type="password" name="confirm_password" required minlength="4" class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
+                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="closePwModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 py-2 rounded font-semibold transition text-sm">Cancel</button>
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded font-semibold transition text-sm">Save Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openPwModal() { document.getElementById('pwModal').classList.remove('hidden'); }
+        function closePwModal() { document.getElementById('pwModal').classList.add('hidden'); }
+        document.getElementById('pwModal').addEventListener('click', function(e) { if (e.target === this) closePwModal(); });
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closePwModal(); });
+
+        function togglePw(btn) {
+            const wrap = btn.closest('.relative');
+            const input = wrap ? wrap.querySelector('input') : null;
+            if (!input) return;
+            const eyeOn = btn.querySelector('.eye-on');
+            const eyeOff = btn.querySelector('.eye-off');
+            if (input.type === 'password') {
+                input.type = 'text';
+                if (eyeOn) eyeOn.classList.add('hidden');
+                if (eyeOff) eyeOff.classList.remove('hidden');
+            } else {
+                input.type = 'password';
+                if (eyeOn) eyeOn.classList.remove('hidden');
+                if (eyeOff) eyeOff.classList.add('hidden');
+            }
+        }
+    </script>
+
+    <% if (breakStatus !== 'off' && breakStartTime) { %>
+    <script>
+        const startTime = parseInt("<%= breakStartTime %>");
+        const remainingAtStart = parseInt("<%= breakStatus === 'break1' ? b1Rem : (breakStatus === 'break2' ? b2Rem : b3Rem) %>");
+        const totalDurationSecs = remainingAtStart * 60;
+
+        function updateTimer() {
+            const elapsedSecs = Math.floor((Date.now() - startTime) / 1000);
+            const remainingSecs = totalDurationSecs - elapsedSecs;
+
+            const cd = document.getElementById('countdown');
+            if (remainingSecs <= 0) {
+                const overSecs = -remainingSecs;
+                const overMins = Math.floor(overSecs / 60);
+                const overRemSecs = overSecs % 60;
+                cd.innerText = `+${overMins}m ${overRemSecs < 10 ? '0' : ''}${overRemSecs}s over`;
+                cd.classList.remove('text-emerald-400');
+                cd.classList.add('text-red-400');
+                const lbl = document.getElementById('breakStateLabel');
+                if (lbl) { lbl.innerText = 'Over break time'; lbl.classList.remove('text-emerald-300/70'); lbl.classList.add('text-red-400/80'); }
+                return;
+            }
+
+            const mins = Math.floor(remainingSecs / 60);
+            const secs = remainingSecs % 60;
+            document.getElementById('countdown').innerText = `${mins}m ${secs < 10 ? '0' : ''}${secs}s remaining`;
+        }
+
+        updateTimer();
+        setInterval(updateTimer, 1000);
+    </script>
+    <% } %>
+    <script>
+        // Live leaderboard: refresh everyone's counts every 10s so new
+        // submissions appear without a page reload.
+        (function () {
+            var list = document.getElementById('leaderboardList');
+            if (!list) return;
+            function row(rank, name, links, followups) {
+                var div = document.createElement('div');
+                div.className = 'flex justify-between items-center bg-slate-900 p-3 rounded border border-slate-750';
+                var nameSpan = document.createElement('span');
+                nameSpan.className = 'text-sm font-medium';
+                nameSpan.textContent = rank + '. ' + name;
+                var boxes = document.createElement('div');
+                boxes.className = 'flex gap-2 shrink-0';
+                var b1 = document.createElement('span');
+                b1.className = 'bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded text-xs font-bold';
+                b1.textContent = links + ' links';
+                var b2 = document.createElement('span');
+                b2.className = 'bg-amber-500/30 text-amber-300 px-2.5 py-1 rounded text-xs font-bold';
+                b2.textContent = followups + ' follow-ups';
+                var b3 = document.createElement('span');
+                b3.className = 'bg-emerald-600/30 text-emerald-300 px-2.5 py-1 rounded text-xs font-bold';
+                b3.textContent = ((Number(links) || 0) + (Number(followups) || 0)) + ' total';
+                boxes.appendChild(b1); boxes.appendChild(b2); boxes.appendChild(b3);
+                div.appendChild(nameSpan); div.appendChild(boxes);
+                return div;
+            }
+            function tick() {
+                if (document.hidden) return;
+                fetch('/api/leaderboard-live', { credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        if (!d || !d.ok) return;
+                        list.innerHTML = '';
+                        var agents = d.agents || [];
+                        if (agents.length === 0) {
+                            var p = document.createElement('p');
+                            p.className = 'text-sm text-slate-500';
+                            p.textContent = 'No entries yet.';
+                            list.appendChild(p);
+                            return;
+                        }
+                        agents.forEach(function (a, i) {
+                            list.appendChild(row(i + 1, a.full_name || a.username, a.count || 0, a.followups || 0));
+                        });
+                    })
+                    .catch(function () { /* keep polling quietly */ });
+            }
+            setInterval(tick, 10000);
+        })();
+    </script>
+</body>
+</html>

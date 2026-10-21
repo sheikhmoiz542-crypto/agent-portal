@@ -157,10 +157,6 @@ db.serialize(() => {
     });
 });
 
-// One-time migration: supervisor flag for agents (read-only team stats + reports).
-// Ignored if the column already exists.
-db.run(`ALTER TABLE users ADD COLUMN is_supervisor INTEGER DEFAULT 0`, () => {});
-
 app.set('view engine', 'ejs');
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
@@ -197,21 +193,6 @@ function blockAgentOnMobile(req, res, next) {
     const { role } = getAuth(req);
     if (role === 'agent' && isMobileUA(req.get('User-Agent'))) {
         return res.status(403).render('desktop-only');
-    }
-    next();
-}
-
-// Mobile block with a supervisor exemption: agents flagged is_supervisor may
-// open the read-only supervisor dashboard from their phone; every other agent
-// stays desktop-only. Owners/managers were never blocked.
-function blockNonSupervisorOnMobile(req, res, next) {
-    const { user, role } = getAuth(req);
-    if (role === 'agent' && isMobileUA(req.get('User-Agent'))) {
-        db.get(`SELECT is_supervisor FROM users WHERE username = ?`, [user], (err, u) => {
-            if (!err && u && u.is_supervisor) return next();
-            return res.status(403).render('desktop-only');
-        });
-        return;
     }
     next();
 }
@@ -455,9 +436,7 @@ app.post('/login', (req, res) => {
             return res.render('login', { error: 'Invalid username or password' });
         }
 
-        // Supervisors are exempt from the agent mobile block: they may log in
-        // from their phone to use the read-only supervisor dashboard.
-        if (user.role === 'agent' && !user.is_supervisor && isMobileUA(req.get('User-Agent'))) {
+        if (user.role === 'agent' && isMobileUA(req.get('User-Agent'))) {
             return res.render('login', { error: "This page isn't supported on mobile devices." });
         }
 
@@ -471,8 +450,6 @@ app.post('/login', (req, res) => {
 
         if (user.role === 'owner' || user.role === 'manager') {
             res.redirect('/manager');
-        } else if (user.is_supervisor) {
-            res.redirect('/supervisor');
         } else {
             res.redirect(`/agent/${user.username}`);
         }
@@ -571,8 +548,7 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
                             breakExceed: breakExceed,
                             shiftInfo: getShiftProgressInfo(schedFor, schedNow),
                             recentLinks: recentLinks || [],
-                            recoveryCode: recoveryCode,
-                            isSupervisor: !!user.is_supervisor
+                            recoveryCode: recoveryCode
                         });
                         });
                     });
@@ -776,9 +752,7 @@ app.get('/backup', requireOwner, (req, res) => {
     });
 });
 
-// --- Supervisor access (read-only team stats + reports) ---
-// Supervisors are agents with an extra read-only view. They cannot change
-// schedules, manage agents, reset passwords, or touch owner/manager accounts.
+// --- Reports (manager) ---
 
 // Shared report builder: per-agent link counts for a daily/weekly/monthly/custom window.
 // usernameOrAll: 'ALL' or a single username. period: 'daily'|'weekly'|'monthly'|'custom'.
@@ -835,26 +809,6 @@ function getReportData(usernameOrAll, period, refDate, cb, customRange) {
     });
 }
 
-// Team snapshot for the supervisor dashboard: today / this week / this month per agent.
-function getTeamSnapshot(cb) {
-    const today = getShiftDate();
-    const weekStart = getWeekStart(new Date());
-    const weekEnd = addDaysStr(weekStart, 6);
-    const monthStart = today.slice(0, 7) + '-01';
-    db.all(`SELECT u.username, u.full_name,
-            SUM(CASE WHEN l.date = ? AND COALESCE(l.is_followup,0)=0 THEN 1 ELSE 0 END) AS d_links,
-            SUM(CASE WHEN l.date = ? AND COALESCE(l.is_followup,0)=1 THEN 1 ELSE 0 END) AS d_followups,
-            SUM(CASE WHEN l.date >= ? AND l.date <= ? AND COALESCE(l.is_followup,0)=0 THEN 1 ELSE 0 END) AS w_links,
-            SUM(CASE WHEN l.date >= ? AND l.date <= ? AND COALESCE(l.is_followup,0)=1 THEN 1 ELSE 0 END) AS w_followups,
-            SUM(CASE WHEN l.date >= ? AND l.date <= ? AND COALESCE(l.is_followup,0)=0 THEN 1 ELSE 0 END) AS m_links,
-            SUM(CASE WHEN l.date >= ? AND l.date <= ? AND COALESCE(l.is_followup,0)=1 THEN 1 ELSE 0 END) AS m_followups
-        FROM users u LEFT JOIN links l ON l.username = u.username
-        WHERE u.role = 'agent'
-        GROUP BY u.username, u.full_name ORDER BY u.full_name`,
-        [today, today, weekStart, weekEnd, weekStart, weekEnd, monthStart, today, monthStart, today],
-        (err, rows) => cb(rows || []));
-}
-
 function parseReportQuery(req) {
     const rAgent = req.query.agent || 'ALL';
     const rPeriod = ['daily', 'weekly', 'monthly', 'custom'].includes(req.query.period) ? req.query.period : 'daily';
@@ -867,139 +821,6 @@ function parseReportQuery(req) {
     const wantReport = !!(req.query.agent || req.query.period || req.query.date || req.query.from || req.query.to);
     return { rAgent, rPeriod, rDate, rFrom, rTo, wantReport };
 }
-
-// Live per-agent shift status + punctuality for the supervisor dashboard.
-// For every agent: current shift state (in/upcoming/ended/off), the shift's
-// time label, the first link time of the shift date, and a verdict:
-// 'ontime' | 'late' (>10 min grace) | 'waiting' (shift running, no links yet) |
-// 'absent' (shift ended with zero links) | 'upcoming' | 'off'.
-function getSupervisorLive(cb) {
-    const now = new Date();
-    const shiftDate = getShiftDate();
-    db.all(`SELECT username, full_name FROM users WHERE role = 'agent' ORDER BY full_name`, (err, agents) => {
-        const list = agents || [];
-        if (list.length === 0) return cb([]);
-        const out = [];
-        let pending = list.length;
-        list.forEach(a => {
-            loadSchedFor(a.username, now, (schedFor) => {
-                const info = getShiftProgressInfo(schedFor, now);
-                const rec = {
-                    username: a.username, full_name: a.full_name, state: info.state,
-                    shiftLabel: info.startLabel ? (info.startLabel + ' - ' + info.endLabel) : null,
-                    firstMs: null, verdict: 'off', lateMin: 0
-                };
-                const done = () => {
-                    out.push(rec);
-                    if (--pending === 0) {
-                        out.sort((x, y) => x.full_name.localeCompare(y.full_name));
-                        cb(out);
-                    }
-                };
-                if (info.state === 'off' || !info.startMs) return done();
-                db.get(`SELECT MIN(submitted_at) AS first_ms FROM links WHERE username = ? AND date = ?`,
-                    [a.username, shiftDate], (e2, row) => {
-                        rec.firstMs = (row && row.first_ms) || null;
-                        if (rec.firstMs) {
-                            const lateMin = Math.round((rec.firstMs - info.startMs) / 60000);
-                            if (lateMin > 10) { rec.verdict = 'late'; rec.lateMin = lateMin; }
-                            else rec.verdict = 'ontime';
-                        } else if (info.state === 'in') {
-                            rec.verdict = 'waiting';
-                        } else if (info.state === 'ended') {
-                            rec.verdict = 'absent';
-                        } else {
-                            rec.verdict = 'upcoming';
-                        }
-                        done();
-                    });
-            });
-        });
-    });
-}
-
-app.post('/toggle-supervisor', requireManager, (req, res) => {
-    const username = (req.body.username || '').trim();
-    if (!username) return res.redirect('/manager?error=' + encodeURIComponent('Missing username.'));
-    db.get(`SELECT username, full_name, role, is_supervisor FROM users WHERE username = ?`, [username], (err, u) => {
-        if (err || !u || u.role !== 'agent') {
-            return res.redirect('/manager?error=' + encodeURIComponent('Agent not found.'));
-        }
-        const next = u.is_supervisor ? 0 : 1;
-        db.run(`UPDATE users SET is_supervisor = ? WHERE username = ?`, [next, username], () => {
-            const msg = next ? `${u.full_name} is now a supervisor.` : `${u.full_name} is no longer a supervisor.`;
-            res.redirect('/manager?success=' + encodeURIComponent(msg));
-        });
-    });
-});
-
-app.get('/supervisor', requireLogin, blockNonSupervisorOnMobile, (req, res) => {
-    const { user: loggedUser, role: loggedRole } = getAuth(req);
-    db.get(`SELECT full_name, role, is_supervisor FROM users WHERE username = ?`, [loggedUser], (err, me) => {
-        const isSup = !!(me && me.is_supervisor);
-        if (!(loggedRole === 'owner' || loggedRole === 'manager' || isSup)) {
-            return res.redirect(loggedRole === 'agent' ? `/agent/${loggedUser}` : '/login');
-        }
-        const selWeek = (/^\d{4}-\d{2}-\d{2}$/.test(req.query.week || '')) ? req.query.week : getWeekStart(new Date());
-        const curWeek = getWeekStart(new Date());
-        getTeamSnapshot((snapshot) => {
-            getSupervisorLive((live) => {
-                getLiveBreaks((liveBreaks) => {
-                    db.all(`SELECT username, full_name, COUNT(*) AS breaks_taken, COALESCE(SUM(elapsed_min),0) AS minutes_used, COALESCE(SUM(exceeded_min),0) AS minutes_over
-                            FROM break_log WHERE day = ? GROUP BY username`, [getTodayStr()], (err2, breakToday) => {
-                        db.all(`SELECT username, full_name, mon, tue, wed, thu, fri, sat, sun FROM users WHERE role = 'agent' ORDER BY full_name`, (err3, agents) => {
-                            db.all(`SELECT username, mon, tue, wed, thu, fri, sat, sun FROM schedules WHERE week_start = ?`, [selWeek], (err4, schedRows) => {
-                                const schedMap = {};
-                                (schedRows || []).forEach(r => { schedMap[r.username] = r; });
-                                // Read-only week schedule: schedules row wins, users row is the fallback.
-                                const weekSchedules = (agents || []).map(a => {
-                                    const w = schedMap[a.username];
-                                    const days = {};
-                                    ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(k => {
-                                        const v = (w && w[k] != null && w[k] !== '') ? w[k] : a[k];
-                                        days[k] = (v && String(v).trim() !== '') ? v : 'OFF';
-                                    });
-                                    return { full_name: a.full_name, days };
-                                });
-                                db.all(`SELECT DISTINCT week_start FROM schedules WHERE week_start >= ? ORDER BY week_start`, [curWeek], (err5, weekRows) => {
-                                    const weeks = (weekRows || []).map(r => ({ week_start: r.week_start, label: formatWeekLabel(r.week_start) }));
-                                    if (!weeks.some(w => w.week_start === selWeek)) {
-                                        weeks.unshift({ week_start: selWeek, label: formatWeekLabel(selWeek) });
-                                        weeks.sort((a, b) => a.week_start < b.week_start ? -1 : 1);
-                                    }
-                                    let tL = 0, tF = 0;
-                                    (snapshot || []).forEach(s => { tL += s.d_links || 0; tF += s.d_followups || 0; });
-                                    const { rAgent, rPeriod, rDate, rFrom, rTo, wantReport } = parseReportQuery(req);
-                                    const renderPage = (report) => {
-                                        res.render('supervisor', {
-                                            viewerName: me ? me.full_name : loggedUser,
-                                            userRole: loggedRole,
-                                            backUrl: loggedRole === 'agent' ? `/agent/${loggedUser}` : '/manager',
-                                            snapshot: snapshot,
-                                            live: live,
-                                            liveBreaks: liveBreaks || [],
-                                            breakToday: breakToday || [],
-                                            weekSchedules: weekSchedules,
-                                            weeks: weeks,
-                                            selWeek: selWeek,
-                                            todayTotals: { links: tL, followups: tF, total: tL + tF },
-                                            agents: agents || [],
-                                            rAgent, rPeriod, rDate, rFrom, rTo, wantReport, report,
-                                            success: req.query.success || null,
-                                            error: req.query.error || null
-                                        });
-                                    };
-                                    if (wantReport) getReportData(rAgent, rPeriod, rDate, renderPage, { from: rFrom, to: rTo });
-                                    else renderPage(null);
-                                });
-                            });
-                        });
-                    });
-                });
-            });
-        });
-    });
-});
 
 app.get('/manager/reports', requireManager, (req, res) => {
     const { user: loggedUser, role: loggedRole } = getAuth(req);

@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Manager Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        html { color-scheme: dark; }
+        /* Dark-yellow calendar icon for the date picker so it stays visible on dark inputs */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.72) sepia(1) saturate(5) hue-rotate(-8deg);
+            cursor: pointer;
+            opacity: 0.95;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen">
+    <nav class="bg-slate-800 border-b border-slate-700 px-4 sm:px-6 py-4 flex flex-wrap justify-between items-center gap-3">
+        <div class="flex items-center gap-3">
+            <h1 class="text-lg sm:text-xl font-bold text-indigo-400">Manager Portal</h1>
+            <span class="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded border <%= isOwner ? 'bg-amber-600/20 text-amber-300 border-amber-600/40' : 'bg-indigo-600/20 text-indigo-300 border-indigo-600/40' %>"><%= isOwner ? 'Owner' : 'Manager' %></span>
+        </div>
+        <div class="flex gap-2 sm:gap-3 flex-wrap">
+            <a href="/manager/preview-schedule" target="_blank" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-sm font-semibold transition">Preview Team Schedule</a>
+            <a href="/manager/reports" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded text-sm font-semibold transition">Reports</a>
+            <button onclick="openFilterModal()" class="relative bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition">Filter Stats<% if (selectedFrom || selectedTo || selectedAgent) { %><span class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-400 border-2 border-slate-800" title="A filter is active"></span><% } %></button>
+            <button onclick="openAddAgentModal()" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-sm font-semibold transition">+ Add Agent</button>
+            <% if (isOwner) { %><button onclick="openAddManagerModal()" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-sm font-semibold transition">+ Add Manager</button><% } %>
+            <button onclick="openPwModal()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition">Change Password</button>
+            <a href="/logout" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded text-sm font-semibold transition">Logout</a>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+        <% if (success) { %>
+            <div class="bg-green-500/20 border border-green-500 text-green-300 p-2 sm:p-3 rounded text-sm"><%= success %></div>
+        <% } %>
+        <% if (error) { %>
+            <div class="bg-red-500/20 border border-red-500 text-red-300 p-2 sm:p-3 rounded text-sm"><%= error %></div>
+        <% } %>
+
+        <!-- Stats Overview -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg flex items-center gap-4">
+                <div class="w-11 h-11 rounded-lg bg-indigo-600/20 flex items-center justify-center shrink-0">
+                    <svg class="w-5 h-5 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-white"><%= agents.length %></div>
+                    <div class="text-xs text-slate-500">Total Agents</div>
+                </div>
+            </div>
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg flex items-center gap-4">
+                <div class="w-11 h-11 rounded-lg bg-emerald-600/20 flex items-center justify-center shrink-0">
+                    <svg class="w-5 h-5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                </div>
+                <div>
+                    <div id="linksInViewCount" class="text-2xl font-bold text-white"><%= links.length %></div>
+                    <div class="text-xs text-slate-500">Links in View</div>
+                </div>
+            </div>
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg flex items-center gap-4">
+                <div class="w-11 h-11 rounded-lg bg-amber-600/20 flex items-center justify-center shrink-0">
+                    <svg class="w-5 h-5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                </div>
+                <div class="min-w-0">
+                    <div class="text-sm font-bold text-white truncate"><%= scheduleRange || 'No range set' %></div>
+                    <div class="text-xs text-slate-500">Active Schedule Range</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Break Tracking -->
+        <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 shadow-lg">
+            <h2 class="text-lg font-semibold mb-4 text-indigo-300">Live Break Tracking <span class="ml-2 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-600/20 text-emerald-300 align-middle"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Live</span></h2>
+            <% const fmtT = (ms) => { const d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }; %>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <h3 class="text-sm font-semibold text-slate-400 mb-2">Currently on break</h3>
+                    <div id="liveBreaksList" class="space-y-2">
+                        <% if (liveBreaks.length === 0) { %>
+                            <p class="text-sm text-slate-500">No one on break right now.</p>
+                        <% } else { %>
+                            <% liveBreaks.forEach(b => { %>
+                                <div class="flex justify-between items-center bg-slate-900 p-3 rounded border border-slate-750">
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-bold text-slate-100 truncate"><%= b.full_name %></div>
+                                        <div class="text-xs text-slate-500">Break <%= b.break_num %> (<%= b.allowance_min %> min) &mdash; started <%= fmtT(b.started_at) %></div>
+                                    </div>
+                                    <span class="text-amber-300 text-xs font-bold shrink-0 ml-2" data-breakstart="<%= b.started_at %>"></span>
+                                </div>
+                            <% }) %>
+                        <% } %>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-slate-400 mb-2">Today's break usage</h3>
+                    <div id="breakTodayList" class="space-y-2">
+                        <% if (breakToday.length === 0) { %>
+                            <p class="text-sm text-slate-500">No breaks taken today.</p>
+                        <% } else { %>
+                            <% breakToday.forEach(t => { %>
+                                <div class="flex justify-between items-center bg-slate-900 p-3 rounded border border-slate-750">
+                                    <span class="text-sm font-medium text-slate-200 truncate"><%= t.full_name %></span>
+                                    <span class="text-xs text-slate-400 shrink-0 ml-2"><%= t.breaks_taken %> breaks &middot; <%= t.minutes_used %> min used<%= t.minutes_over > 0 ? ' · ' + t.minutes_over + ' min over' : '' %></span>
+                                </div>
+                            <% }) %>
+                        <% } %>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Set Schedule Date Range Section -->
+        <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 shadow-lg">
+            <h2 class="text-lg font-semibold mb-4 text-indigo-300">Set Active Schedule Date Range (For Slack/WhatsApp Previews)</h2>
+            <form action="/update-schedule-range" method="POST" class="flex flex-col sm:flex-row gap-3">
+                <input type="text" name="schedule_range" value="<%= scheduleRange %>" placeholder="e.g. Mon 28 Sep 2026 - Sun 04 Oct 2026" required class="flex-1 bg-slate-900 border border-slate-750 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 px-6 py-2 rounded font-semibold transition">Update Range</button>
+            </form>
+        </div>
+
+        <% if (isOwner) { %>
+        <!-- Team Managers (Owner only) -->
+        <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 shadow-lg">
+            <h2 class="text-lg font-semibold mb-1 text-indigo-300">Team Managers</h2>
+            <p class="text-xs text-slate-500 mb-4">Managers handle schedules, agents and password resets — but cannot touch your Owner account or add other managers.</p>
+            <div class="space-y-2">
+                <% managers.forEach(m => { %>
+                    <div class="flex flex-wrap justify-between items-center gap-2 bg-slate-900 p-2 sm:p-3 rounded-lg border border-slate-750">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full <%= m.role === 'owner' ? 'bg-amber-600/25 text-amber-300' : 'bg-indigo-600/25 text-indigo-300' %> flex items-center justify-center font-bold text-xs shrink-0"><%= m.full_name.charAt(0).toUpperCase() %></div>
+                            <div>
+                                <div class="text-sm font-bold text-slate-100"><%= m.full_name %> <span class="text-slate-500 font-normal text-xs">@<%= m.username %></span></div>
+                                <% if (m.email) { %><div class="text-xs text-slate-500"><%= m.email %></div><% } %>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap justify-end">
+                            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded <%= m.role === 'owner' ? 'bg-amber-600/20 text-amber-300' : 'bg-indigo-600/20 text-indigo-300' %>"><%= m.role %></span>
+                            <% if (m.role === 'manager') { %>
+                            <form action="/reset-manager-password" method="POST" class="flex gap-1 items-center" onsubmit="return confirm('Reset password for <%= m.full_name %> (<%= m.username %>)? They will need the new password to log in.');">
+                                <input type="hidden" name="username" value="<%= m.username %>">
+                                <div class="relative">
+                                    <input type="password" name="new_password" required minlength="4" placeholder="New password" class="bg-slate-800 border border-slate-700 rounded pl-2 pr-8 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500 w-28">
+                                    <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-2 text-slate-500 hover:text-slate-200">
+                                        <svg class="eye-on w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                        <svg class="eye-off w-3.5 h-3.5 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                                    </button>
+                                </div>
+                                <button type="submit" class="bg-amber-600/20 hover:bg-amber-600/40 text-amber-300 px-2.5 py-1.5 rounded text-xs font-semibold transition">Reset</button>
+                            </form>
+                            <form action="/delete-manager" method="POST" onsubmit="return confirm('Remove manager <%= m.full_name %> (<%= m.username %>)? They will lose access immediately.');">
+                                <input type="hidden" name="username" value="<%= m.username %>">
+                                <button type="submit" class="bg-red-600/20 hover:bg-red-600/40 text-red-300 px-3 py-1.5 rounded text-xs font-semibold transition">Remove</button>
+                            </form>
+                            <% } %>
+                        </div>
+                    </div>
+                <% }) %>
+            </div>
+        </div>
+
+        <!-- Database Backup (Owner only) -->
+        <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 shadow-lg mt-6">
+            <h2 class="text-lg font-semibold mb-1 text-indigo-300">Database Backup</h2>
+            <p class="text-xs text-slate-500 mb-4">Download a dated copy of the full portal database (agents, links, schedules, break logs). Keep it somewhere safe — it is the fastest way to move or restore the portal.</p>
+            <a href="/backup" class="inline-block bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded text-sm font-semibold transition">Download Database Backup</a>
+        </div>
+
+        <% } %>
+
+        <!-- Account Recovery -->
+        <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-amber-600/30 shadow-lg">
+            <h2 class="text-lg font-semibold mb-1 text-amber-300">Account Recovery</h2>
+            <p class="text-xs text-slate-500 mb-4">If you ever forget your password, this recovery code unlocks the "Forgot password?" page on the login screen — no email needed. Keep it somewhere safe (e.g. your phone's password manager). Generating a new code invalidates the old one. Each user has their own code, visible only on their own dashboard.</p>
+            <% if (recoveryCode) { %>
+                <div class="flex flex-wrap items-center gap-3">
+                    <code class="bg-slate-900 border border-amber-600/40 text-amber-200 text-lg font-mono font-bold tracking-widest px-4 py-2 rounded select-all"><%= recoveryCode %></code>
+                    <form action="/generate-recovery-code" method="POST" onsubmit="return confirm('Generate a new recovery code? The old one will stop working.');">
+                        <button type="submit" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition">Generate New Code</button>
+                    </form>
+                </div>
+            <% } else { %>
+                <form action="/generate-recovery-code" method="POST">
+                    <button type="submit" class="bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded text-sm font-semibold transition">Generate Recovery Code</button>
+                </form>
+            <% } %>
+        </div>
+
+        <!-- Weekly Schedule Management Section (multi-week) -->
+        <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 shadow-lg" id="schedules">
+            <h2 class="text-lg font-semibold mb-2 text-indigo-300">Manage Weekly Schedules</h2>
+            <p class="text-xs text-slate-500 mb-4">Pick a week, edit every agent's schedule, then hit <span class="text-slate-300 font-semibold">Save All Schedules</span> once &mdash; all agents save together. New weeks activate automatically when their Monday arrives; the agent portal always follows the current week.</p>
+
+            <!-- Week tabs -->
+            <div class="flex flex-wrap gap-2 mb-4 items-center">
+                <% weeks.forEach(w => { %>
+                    <a href="/manager?week=<%= w.week_start %>#schedules" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition <%= w.week_start === selectedWeek ? 'bg-indigo-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-200' %>"><%= w.label %><%= w.isCurrent ? ' (Current)' : '' %></a>
+                <% }) %>
+                <form action="/add-schedule-week" method="POST" class="inline">
+                    <button type="submit" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition">+ Add Week</button>
+                </form>
+                <a href="/manager/preview-schedule?week=<%= selectedWeek %>" target="_blank" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 transition">Preview This Week</a>
+            </div>
+
+            <div class="space-y-4 max-h-96 overflow-y-auto">
+                <% agents.forEach(agent => { %>
+                    <% const ws = weekSchedules[agent.username] || {}; %>
+                    <% const dayNames = {mon:'Mon',tue:'Tue',wed:'Wed',thu:'Thu',fri:'Fri',sat:'Sat',sun:'Sun'}; %>
+                    <div class="bg-slate-900 p-4 rounded-lg border border-slate-750 space-y-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="w-9 h-9 rounded-full bg-indigo-600/25 text-indigo-300 flex items-center justify-center font-bold text-sm shrink-0"><%= agent.full_name.charAt(0).toUpperCase() %></div>
+                            <div class="min-w-0 flex-1">
+                                <div class="font-bold text-slate-100 truncate"><%= agent.full_name %> <span class="text-slate-500 font-normal text-xs">@<%= agent.username %></span></div>
+                                <% if (agent.email) { %><div class="text-xs text-slate-500 truncate"><%= agent.email %></div><% } %>
+                            </div>
+                            <button type="button" onclick="saveAgentSchedule(this, '<%= agent.username %>')" title="Save only this agent's schedule (no page refresh)" class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 transition">Save</button>
+                        </div>
+                        <div class="grid grid-cols-2 md:grid-cols-7 gap-2 text-xs">
+                            <% Object.keys(dayNames).forEach(d => { %>
+                                <div>
+                                    <label class="block text-slate-400 mb-1"><%= dayNames[d] %></label>
+                                    <input type="text" form="weekScheduleForm" name="sched[<%= agent.username %>][<%= d %>]" value="<%= ws[d] || '' %>" class="w-full bg-slate-800 border border-slate-700 rounded p-1 text-center text-white">
+                                </div>
+                            <% }) %>
+                        </div>
+<div class="flex flex-wrap gap-2 items-end pt-3 border-t border-slate-800">
+                        <form action="/reset-agent-password" method="POST" class="flex gap-2 items-end" onsubmit="return confirm('Reset password for <%= agent.full_name %>? The agent will need the new password to log in.');">
+                            <input type="hidden" name="username" value="<%= agent.username %>">
+                            <div class="relative">
+                                <input type="password" name="new_password" required minlength="4" placeholder="New password" class="bg-slate-800 border border-slate-700 rounded pl-2 pr-8 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
+                                <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-2 text-slate-500 hover:text-slate-200">
+                                    <svg class="eye-on w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                    <svg class="eye-off w-3.5 h-3.5 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                                </button>
+                            </div>
+                            <button type="submit" class="bg-amber-600 hover:bg-amber-500 px-3 py-1.5 rounded text-xs font-semibold transition">Reset Password</button>
+                        </form>
+                        <form action="/delete-agent" method="POST" onsubmit="return confirm('Delete agent <%= agent.full_name %> (<%= agent.username %>)? Their login will stop working immediately. This cannot be undone.');">
+                            <input type="hidden" name="username" value="<%= agent.username %>">
+                            <button type="submit" class="bg-red-600 hover:bg-red-500 px-3 py-1.5 rounded text-xs font-semibold transition">Delete Agent</button>
+                        </form>
+                    
+                    </div>
+                <% }) %>
+            </div>
+
+            <!-- One form for the whole week: every day-input above belongs to it -->
+            <form id="weekScheduleForm" action="/update-week-schedule" method="POST">
+                <input type="hidden" name="week_start" value="<%= selectedWeek %>">
+            </form>
+            <% const selWeek = weeks.find(w => w.week_start === selectedWeek); %>
+            <button form="weekScheduleForm" type="submit" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-500 px-6 py-2.5 rounded font-semibold transition">Save All Schedules &mdash; <%= selWeek ? selWeek.label : selectedWeek %></button>
+        </div>
+
+        <!-- Filtered Links Table -->
+        <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 shadow-lg">
+            <h2 class="text-lg font-semibold mb-4 text-indigo-300">Submitted Links Result <span id="liveDot" class="ml-2 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-600/20 text-emerald-300 align-middle"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Live</span></h2>
+            <div class="overflow-x-auto max-h-60 overflow-y-auto">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead>
+                        <tr class="bg-slate-900 text-slate-400 border-b border-slate-700">
+                            <th class="p-2 sm:p-3">Agent Name</th>
+                            <th class="p-2 sm:p-3">Link</th>
+                            <th class="p-2 sm:p-3">Date (Shift)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="submittedLinksBody" data-max-id="<%= links.length ? links[0].id : 0 %>">
+                        <% if (links.length === 0) { %>
+                            <tr><td colspan="3" class="p-4 text-center text-slate-500">No records found for selected filter.</td></tr>
+                        <% } else { %>
+                            <% links.forEach(item => { %>
+                                <tr class="border-b border-slate-750 hover:bg-slate-750/50">
+                                    <td class="p-2 sm:p-3 font-medium"><%= item.full_name %></td>
+                                    <td class="p-2 sm:p-3"><a href="<%= item.link %>" target="_blank" class="text-indigo-400 hover:underline"><%= item.link %></a></td>
+                                    <td class="p-2 sm:p-3 text-slate-400"><%= item.date %></td>
+                                </tr>
+                            <% }) %>
+                        <% } %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Daily Summary Stats by Agent -->
+        <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 shadow-lg">
+            <h2 class="text-lg font-semibold mb-4 text-indigo-300"><% if (selectedFrom || selectedTo || selectedAgent) { %>Summary Stats <span class="text-sm font-normal text-slate-400">(<%= selectedFrom || '…' %> &rarr; <%= selectedTo || '…' %><%= selectedAgent ? ' · @' + selectedAgent : '' %>)</span><% } else { %>All Days & Agents Summary Stats<% } %></h2>
+            <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                    <tr class="bg-slate-900 text-slate-400 border-b border-slate-700">
+                        <th class="p-2 sm:p-3">Date</th>
+                        <th class="p-2 sm:p-3">Agent Name</th>
+                        <th class="p-2 sm:p-3">Total Links</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% if (dailyStats.length === 0) { %>
+                            <tr><td colspan="3" class="p-4 text-center text-slate-500">No stats available.</td></tr>
+                        <% } else { %>
+                            <% dailyStats.forEach(stat => { %>
+                                <tr class="border-b border-slate-750 hover:bg-slate-750/50">
+                                    <td class="p-2 sm:p-3 text-slate-300"><%= stat.date %></td>
+                                    <td class="p-2 sm:p-3 font-medium"><%= stat.full_name %></td>
+                                    <td class="p-2 sm:p-3 text-indigo-400 font-bold"><%= stat.total_links %></td>
+                                </tr>
+                            <% }) %>
+                        <% } %>
+                    </tbody>
+                </table>
+        </div>
+    </div>
+
+    <!-- Filter Stats Modal -->
+    <div id="filterModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl w-full max-w-md p-4 sm:p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-indigo-300">Filter Agent Stats</h2>
+                <button type="button" onclick="closeFilterModal()" class="text-slate-500 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            <form action="/manager" method="GET" class="space-y-4">
+                <div>
+                    <div class="flex gap-2 mb-2">
+                        <span class="text-xs text-slate-500 font-semibold self-center">Quick:</span>
+                        <button type="button" onclick="setRangePreset(7)" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 transition">7 days</button>
+                        <button type="button" onclick="setRangePreset(10)" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 transition">10 days</button>
+                        <button type="button" onclick="setRangePreset(30)" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 transition">30 days</button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-1">From Date</label>
+                            <input type="date" id="filterFrom" name="from" value="<%= selectedFrom %>" class="w-full bg-slate-900 border border-slate-750 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-1">To Date</label>
+                            <input type="date" id="filterTo" name="to" value="<%= selectedTo %>" class="w-full bg-slate-900 border border-slate-750 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Select Agent</label>
+                    <select name="agent" class="w-full bg-slate-900 border border-slate-750 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                        <option value="">All Agents</option>
+                        <% agents.forEach(agent => { %>
+                            <option value="<%= agent.username %>" <%= selectedAgent === agent.username ? 'selected' : '' %>><%= agent.full_name %></option>
+                        <% }) %>
+                    </select>
+                </div>
+                <div class="flex gap-2">
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded font-semibold transition">Apply Filter</button>
+                    <% if (selectedFrom || selectedTo || selectedAgent) { %>
+                    <a href="/manager" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-center font-semibold transition">Clear</a>
+                    <% } %>
+                    <button type="button" onclick="closeFilterModal()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded font-semibold transition">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Agent Modal -->
+    <div id="addAgentModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl w-full max-w-md p-4 sm:p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-emerald-300">Add New Agent</h2>
+                <button type="button" onclick="closeAddAgentModal()" class="text-slate-500 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            <form action="/add-agent" method="POST" class="space-y-4">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Agent Name</label>
+                    <input type="text" name="name" required placeholder="e.g. Ali Khan" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Email Address</label>
+                    <input type="email" name="email" required placeholder="e.g. ali@company.com" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Password</label>
+                    <div class="relative">
+                        <input type="password" name="password" required minlength="4" placeholder="Min. 4 characters" class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
+                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-500">The agent's login username is auto-generated from the email address (e.g. ali.khan@company.com &rarr; alikhan). New agents start with all days OFF &mdash; set their weekly schedule below.</p>
+                <div class="flex gap-2">
+                    <button type="submit" class="flex-1 bg-emerald-500 hover:bg-emerald-400 py-2 rounded font-semibold text-white transition">Add Agent</button>
+                    <button type="button" onclick="closeAddAgentModal()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded font-semibold transition">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Manager Modal -->
+    <div id="addManagerModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl w-full max-w-md p-4 sm:p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-indigo-300">Add New Manager</h2>
+                <button type="button" onclick="closeAddManagerModal()" class="text-slate-500 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            <form action="/add-manager" method="POST" class="space-y-4">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Manager Name</label>
+                    <input type="text" name="name" required placeholder="e.g. John Smith" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Email Address</label>
+                    <input type="email" name="email" required placeholder="e.g. john@company.com" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Password</label>
+                    <div class="relative">
+                        <input type="password" name="password" required minlength="4" placeholder="Min. 4 characters" class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
+                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-500">Managers handle schedules, agents and password resets &mdash; but cannot touch your Owner account or add other managers.</p>
+                <div class="flex gap-2">
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded font-semibold text-white transition">Add Manager</button>
+                    <button type="button" onclick="closeAddManagerModal()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded font-semibold transition">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div id="pwModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl w-full max-w-md p-4 sm:p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-indigo-300">Change Password</h2>
+                <button type="button" onclick="closePwModal()" class="text-slate-500 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            <form action="/change-password" method="POST" class="space-y-3">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Current Password</label>
+                    <div class="relative">
+                        <input type="password" name="current_password" required class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
+                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">New Password</label>
+                    <div class="relative">
+                        <input type="password" name="new_password" required minlength="4" class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
+                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Confirm New Password</label>
+                    <div class="relative">
+                        <input type="password" name="confirm_password" required minlength="4" class="w-full bg-slate-900 border border-slate-700 rounded p-2 pr-10 text-white focus:outline-none focus:border-indigo-500">
+                        <button type="button" onclick="togglePw(this)" title="Show/hide password" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-200">
+                            <svg class="eye-on w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="23" x2="23" y2="1"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="closePwModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 py-2 rounded font-semibold transition text-sm">Cancel</button>
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded font-semibold transition text-sm">Save Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openPwModal() { document.getElementById('pwModal').classList.remove('hidden'); }
+        function closePwModal() { document.getElementById('pwModal').classList.add('hidden'); }
+        function openFilterModal() { document.getElementById('filterModal').classList.remove('hidden'); }
+        function closeFilterModal() { document.getElementById('filterModal').classList.add('hidden'); }
+        function openAddAgentModal() { document.getElementById('addAgentModal').classList.remove('hidden'); }
+        function closeAddAgentModal() { document.getElementById('addAgentModal').classList.add('hidden'); }
+        function openAddManagerModal() { document.getElementById('addManagerModal').classList.remove('hidden'); }
+        function closeAddManagerModal() { document.getElementById('addManagerModal').classList.add('hidden'); }
+        function closeAllModals() { closePwModal(); closeFilterModal(); closeAddAgentModal(); closeAddManagerModal(); }
+        // Save ONE agent's schedule for the selected week via AJAX — no page
+        // reload, so other agents' unsaved edits stay untouched.
+        async function saveAgentSchedule(btn, username) {
+            var days = ['mon','tue','wed','thu','fri','sat','sun'];
+            var payload = { username: username, week: <%- JSON.stringify(selectedWeek) %> };
+            days.forEach(function (d) {
+                var el = document.querySelector('input[name="sched[' + username + '][' + d + ']"]');
+                payload[d] = el ? el.value : '';
+            });
+            var orig = btn.textContent;
+            btn.disabled = true; btn.textContent = 'Saving…';
+            try {
+                var r = await fetch('/api/save-agent-schedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                var j = await r.json();
+                if (j && j.ok) { btn.textContent = 'Saved ✓'; btn.classList.remove('bg-slate-700','hover:bg-slate-600'); btn.classList.add('bg-emerald-600'); }
+                else { btn.textContent = 'Error'; }
+            } catch (e) { btn.textContent = 'Error'; }
+            setTimeout(function () { btn.textContent = orig; btn.disabled = false; btn.classList.add('bg-slate-700','hover:bg-slate-600'); btn.classList.remove('bg-emerald-600'); }, 2000);
+        }
+        // Quick range presets: last N days ending today (portal PKT date).
+        function setRangePreset(n) {
+            var to = new Date();
+            var from = new Date(); from.setDate(from.getDate() - (n - 1));
+            var fmt = function (d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); };
+            document.getElementById('filterFrom').value = fmt(from);
+            document.getElementById('filterTo').value = fmt(to);
+        }
+        ['pwModal', 'filterModal', 'addAgentModal', 'addManagerModal'].forEach(function (id) {
+            document.getElementById(id).addEventListener('click', function(e) { if (e.target === this) this.classList.add('hidden'); });
+        });
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeAllModals(); });
+
+        // Show/hide password toggle for the eye icons
+        function togglePw(btn) {
+            const wrap = btn.closest('.relative');
+            const input = wrap ? wrap.querySelector('input') : null;
+            if (!input) return;
+            const eyeOn = btn.querySelector('.eye-on');
+            const eyeOff = btn.querySelector('.eye-off');
+            if (input.type === 'password') {
+                input.type = 'text';
+                if (eyeOn) eyeOn.classList.add('hidden');
+                if (eyeOff) eyeOff.classList.remove('hidden');
+            } else {
+                input.type = 'password';
+                if (eyeOn) eyeOn.classList.remove('hidden');
+                if (eyeOff) eyeOff.classList.add('hidden');
+            }
+        }
+
+        // Live link feed: when no date/agent filter is active, poll for new
+        // agent submissions every 10s and prepend them — no manual refresh.
+        window.__managerFilters = { from: <%- JSON.stringify(selectedFrom) %>, to: <%- JSON.stringify(selectedTo) %>, agent: <%- JSON.stringify(selectedAgent) %> };
+        (function () {
+            var liveDot = document.getElementById('liveDot');
+            var countEl = document.getElementById('linksInViewCount');
+            var tbody = document.getElementById('submittedLinksBody');
+            if (!liveDot || !tbody) return;
+            // The links feed is filtered, so it only stays live with no filter active.
+            // The break card is unfiltered by nature — it ALWAYS stays live.
+            var linksLive = !(window.__managerFilters.from || window.__managerFilters.to || window.__managerFilters.agent);
+            if (!linksLive) liveDot.style.display = 'none';
+            var maxId = parseInt(tbody.getAttribute('data-max-id') || '0', 10) || 0;
+            var lastOk = Date.now();
+            function esc(s) { return String(s == null ? '' : s); }
+            function tick() {
+                if (document.hidden) return;
+                fetch('/api/manager-live?since_id=' + maxId, { credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        if (!d || !d.ok) return;
+                        if (linksLive) {
+                        (d.links || []).slice().reverse().forEach(function (item) {
+                            if (item.id > maxId) maxId = item.id;
+                            var tr = document.createElement('tr');
+                            tr.className = 'border-b border-slate-750 hover:bg-slate-750/50';
+                            var tdName = document.createElement('td');
+                            tdName.className = 'p-2 sm:p-3 font-medium';
+                            tdName.textContent = esc(item.full_name);
+                            var tdLink = document.createElement('td');
+                            tdLink.className = 'p-2 sm:p-3';
+                            var a = document.createElement('a');
+                            a.href = esc(item.link);
+                            a.target = '_blank';
+                            a.className = 'text-indigo-400 hover:underline';
+                            a.textContent = esc(item.link);
+                            tdLink.appendChild(a);
+                            if (item.is_followup) {
+                                var badge = document.createElement('span');
+                                badge.className = 'ml-2 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-yellow-600/20 text-yellow-300';
+                                badge.textContent = 'follow-up';
+                                tdLink.appendChild(badge);
+                            }
+                            var tdDate = document.createElement('td');
+                            tdDate.className = 'p-2 sm:p-3 text-slate-400';
+                            tdDate.textContent = esc(item.date);
+                            tr.appendChild(tdName); tr.appendChild(tdLink); tr.appendChild(tdDate);
+                            tbody.prepend(tr);
+                        });
+                        if (typeof d.total === 'number' && countEl) countEl.textContent = d.total;
+                        } // end linksLive
+                        renderBreaks(d.breaksLive || [], d.breaksToday || []);
+                        lastOk = Date.now();
+                    })
+                    .catch(function () { /* keep polling quietly */ });
+            }
+            function fmtT(ms) {
+                var d = new Date(ms);
+                return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+            }
+            function renderBreaks(live, today) {
+                var liveList = document.getElementById('liveBreaksList');
+                var todayList = document.getElementById('breakTodayList');
+                if (liveList) {
+                    liveList.innerHTML = '';
+                    if (live.length === 0) {
+                        var p0 = document.createElement('p');
+                        p0.className = 'text-sm text-slate-500';
+                        p0.textContent = 'No one on break right now.';
+                        liveList.appendChild(p0);
+                    } else {
+                        live.forEach(function (b) {
+                            var div = document.createElement('div');
+                            div.className = 'flex justify-between items-center bg-slate-900 p-3 rounded border border-slate-750';
+                            var info = document.createElement('div');
+                            info.className = 'min-w-0';
+                            var nm = document.createElement('div');
+                            nm.className = 'text-sm font-bold text-slate-100 truncate';
+                            nm.textContent = b.full_name || b.username;
+                            var sub = document.createElement('div');
+                            sub.className = 'text-xs text-slate-500';
+                            sub.textContent = 'Break ' + b.break_num + ' (' + b.allowance_min + ' min) — started ' + fmtT(b.started_at);
+                            info.appendChild(nm); info.appendChild(sub);
+                            var el = document.createElement('span');
+                            el.className = 'text-amber-300 text-xs font-bold shrink-0 ml-2';
+                            el.setAttribute('data-breakstart', b.started_at);
+                            div.appendChild(info); div.appendChild(el);
+                            liveList.appendChild(div);
+                        });
+                    }
+                }
+                if (todayList) {
+                    todayList.innerHTML = '';
+                    if (today.length === 0) {
+                        var p1 = document.createElement('p');
+                        p1.className = 'text-sm text-slate-500';
+                        p1.textContent = 'No breaks taken today.';
+                        todayList.appendChild(p1);
+                    } else {
+                        today.forEach(function (t) {
+                            var div = document.createElement('div');
+                            div.className = 'flex justify-between items-center bg-slate-900 p-3 rounded border border-slate-750';
+                            var nm = document.createElement('span');
+                            nm.className = 'text-sm font-medium text-slate-200 truncate';
+                            nm.textContent = t.full_name || t.username;
+                            var st = document.createElement('span');
+                            st.className = 'text-xs text-slate-400 shrink-0 ml-2';
+                            st.textContent = t.breaks_taken + ' breaks · ' + t.minutes_used + ' min used' + (t.minutes_over > 0 ? ' · ' + t.minutes_over + ' min over' : '');
+                            div.appendChild(nm); div.appendChild(st);
+                            todayList.appendChild(div);
+                        });
+                    }
+                }
+                tickBreakElapsed();
+            }
+            function tickBreakElapsed() {
+                var now = Date.now();
+                document.querySelectorAll('[data-breakstart]').forEach(function (el) {
+                    var mins = Math.max(0, Math.floor((now - parseInt(el.getAttribute('data-breakstart'), 10)) / 60000));
+                    el.textContent = mins + 'm on break';
+                });
+            }
+            tick(); // first poll right away — page is live from second 0
+            setInterval(tick, 10000);
+            setInterval(tickBreakElapsed, 30000);
+            tickBreakElapsed();
+            setInterval(function () {
+                var s = Math.floor((Date.now() - lastOk) / 1000);
+                liveDot.title = s < 15 ? 'Live — updated just now' : 'Live — updated ' + s + 's ago';
+            }, 5000);
+        })();
+    </script>
+</body>
+</html>
