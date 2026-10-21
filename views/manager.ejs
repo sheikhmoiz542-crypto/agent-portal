@@ -212,7 +212,7 @@
                         <div class="flex items-center gap-3 min-w-0">
                             <div class="w-9 h-9 rounded-full bg-indigo-600/25 text-indigo-300 flex items-center justify-center font-bold text-sm shrink-0"><%= agent.full_name.charAt(0).toUpperCase() %></div>
                             <div class="min-w-0 flex-1">
-                                <div class="font-bold text-slate-100 truncate"><%= agent.full_name %> <span class="text-slate-500 font-normal text-xs">@<%= agent.username %></span><% if (agent.is_supervisor) { %> <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-600/20 text-indigo-300">Supervisor</span><% } %></div>
+                                <div class="font-bold text-slate-100 truncate"><%= agent.full_name %> <span class="text-slate-500 font-normal text-xs">@<%= agent.username %></span></div>
                                 <% if (agent.email) { %><div class="text-xs text-slate-500 truncate"><%= agent.email %></div><% } %>
                             </div>
                             <button type="button" onclick="saveAgentSchedule(this, '<%= agent.username %>')" title="Save only this agent's schedule (no page refresh)" class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 transition">Save</button>
@@ -240,10 +240,6 @@
                         <form action="/delete-agent" method="POST" onsubmit="return confirm('Delete agent <%= agent.full_name %> (<%= agent.username %>)? Their login will stop working immediately. This cannot be undone.');">
                             <input type="hidden" name="username" value="<%= agent.username %>">
                             <button type="submit" class="bg-red-600 hover:bg-red-500 px-3 py-1.5 rounded text-xs font-semibold transition">Delete Agent</button>
-                        </form>
-                        <form action="/toggle-supervisor" method="POST" onsubmit="return confirm('<%= agent.is_supervisor ? `Remove supervisor access for ${agent.full_name}?` : `Give ${agent.full_name} supervisor access? They will see team stats and reports.` %>');">
-                            <input type="hidden" name="username" value="<%= agent.username %>">
-                            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 rounded text-xs font-semibold transition"><%= agent.is_supervisor ? 'Remove Supervisor' : 'Make Supervisor' %></button>
                         </form>
                     
                     </div>
