@@ -204,7 +204,7 @@
                 <a href="/manager/preview-schedule?week=<%= selectedWeek %>" target="_blank" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 transition">Preview This Week</a>
             </div>
 
-            <div class="space-y-4">
+            <div class="space-y-4 max-h-[32rem] overflow-y-auto pr-1">
                 <% agents.forEach(agent => { %>
                     <% const ws = weekSchedules[agent.username] || {}; %>
                     <% const dayNames = {mon:'Mon',tue:'Tue',wed:'Wed',thu:'Thu',fri:'Fri',sat:'Sat',sun:'Sun'}; %>
@@ -258,9 +258,9 @@
         <!-- Filtered Links Table -->
         <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 shadow-lg">
             <h2 class="text-lg font-semibold mb-4 text-indigo-300">Submitted Links Result <span id="liveDot" class="ml-2 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-600/20 text-emerald-300 align-middle"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Live</span></h2>
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto max-h-80 overflow-y-auto">
                 <table class="w-full text-left border-collapse text-sm">
-                    <thead>
+                    <thead class="sticky top-0 z-10">
                         <tr class="bg-slate-900 text-slate-400 border-b border-slate-700">
                             <th class="p-2 sm:p-3">Agent Name</th>
                             <th class="p-2 sm:p-3">Link</th>
@@ -287,8 +287,9 @@
         <!-- Daily Summary Stats by Agent -->
         <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 shadow-lg">
             <h2 class="text-lg font-semibold mb-4 text-indigo-300"><% if (selectedFrom || selectedTo || selectedAgent) { %>Summary Stats <span class="text-sm font-normal text-slate-400">(<%= selectedFrom || '…' %> &rarr; <%= selectedTo || '…' %><%= selectedAgent ? ' · @' + selectedAgent : '' %>)</span><% } else { %>All Days & Agents Summary Stats<% } %></h2>
+            <div class="overflow-x-auto max-h-80 overflow-y-auto">
             <table class="w-full text-left border-collapse text-sm">
-                <thead>
+                <thead class="sticky top-0 z-10">
                     <tr class="bg-slate-900 text-slate-400 border-b border-slate-700">
                         <th class="p-2 sm:p-3">Date</th>
                         <th class="p-2 sm:p-3">Agent Name</th>
@@ -309,6 +310,7 @@
                         <% } %>
                     </tbody>
                 </table>
+            </div>
         </div>
     </div>
 
