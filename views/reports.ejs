@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <title>Team Reports</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>html { color-scheme: dark; }</style>
 </head>
 <body class="bg-slate-900 text-white min-h-screen">
     <nav class="bg-slate-800 border-b border-slate-700 px-4 sm:px-6 py-4 flex flex-wrap justify-between items-center gap-3">
@@ -65,11 +67,72 @@
             </form>
         </div>
 
+        <%
+            // Quick-report presets + period navigation helpers (dates are portal-local).
+            const _fmtD = (dt) => dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+            const _parseD = (str) => { const pp = str.split('-').map(Number); return new Date(pp[0], pp[1] - 1, pp[2]); };
+            const _addD = (str, n) => { const d = _parseD(str); d.setDate(d.getDate() + n); return _fmtD(d); };
+            const _today = _fmtD(new Date());
+            const _weekStart = (str) => { const d = _parseD(str); const diff = (d.getDay() + 6) % 7; d.setDate(d.getDate() - diff); return _fmtD(d); };
+            const _addMonths = (str, n) => { const d = _parseD(str.slice(0, 7) + '-01'); d.setMonth(d.getMonth() + n); return _fmtD(d); };
+            const _q = (extra) => '/manager/reports?agent=' + encodeURIComponent(rAgent) + '&' + extra;
+            const quick = [
+                { label: 'Today', url: _q('period=daily&date=' + _today), active: wantReport && rPeriod === 'daily' && rDate === _today },
+                { label: 'Yesterday', url: _q('period=daily&date=' + _addD(_today, -1)), active: wantReport && rPeriod === 'daily' && rDate === _addD(_today, -1) },
+                { label: 'This Week', url: _q('period=weekly&date=' + _today), active: wantReport && rPeriod === 'weekly' && _weekStart(rDate) === _weekStart(_today) },
+                { label: 'Last Week', url: _q('period=weekly&date=' + _addD(_today, -7)), active: wantReport && rPeriod === 'weekly' && _weekStart(rDate) === _weekStart(_addD(_today, -7)) },
+                { label: 'This Month', url: _q('period=monthly&date=' + _today), active: wantReport && rPeriod === 'monthly' && rDate.slice(0, 7) === _today.slice(0, 7) },
+                { label: 'Last Month', url: _q('period=monthly&date=' + _addMonths(_today, -1)), active: wantReport && rPeriod === 'monthly' && rDate.slice(0, 7) === _addMonths(_today, -1).slice(0, 7) }
+            ];
+        %>
+        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg flex flex-wrap items-center gap-2">
+            <span class="text-xs font-semibold text-slate-400 mr-1">Quick Reports:</span>
+            <% quick.forEach(ch => { %>
+                <a href="<%= ch.url %>" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition <%= ch.active ? 'bg-indigo-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-200' %>"><%= ch.label %></a>
+            <% }) %>
+        </div>
+
         <% if (wantReport && report) { %>
         <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 shadow-lg">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-lg font-semibold text-indigo-300"><%= report.label %></h2>
                 <button onclick="window.print()" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded text-sm font-semibold transition">Print / Save as PDF</button>
+            </div>
+            <%
+                let prevUrl, nextUrl, curUrl, perWord;
+                if (report.period === 'daily') { perWord = 'Day'; prevUrl = _q('period=daily&date=' + _addD(report.from, -1)); nextUrl = _q('period=daily&date=' + _addD(report.from, 1)); curUrl = _q('period=daily&date=' + _today); }
+                else if (report.period === 'weekly') { perWord = 'Week'; prevUrl = _q('period=weekly&date=' + _addD(report.from, -7)); nextUrl = _q('period=weekly&date=' + _addD(report.from, 7)); curUrl = _q('period=weekly&date=' + _today); }
+                else if (report.period === 'monthly') { perWord = 'Month'; prevUrl = _q('period=monthly&date=' + _addMonths(report.from, -1)); nextUrl = _q('period=monthly&date=' + _addMonths(report.from, 1)); curUrl = _q('period=monthly&date=' + _today); }
+                else { perWord = 'Range'; const _len = Math.round((_parseD(report.to) - _parseD(report.from)) / 86400000) + 1; prevUrl = _q('period=custom&from=' + _addD(report.from, -_len) + '&to=' + _addD(report.to, -_len)); nextUrl = _q('period=custom&from=' + _addD(report.from, _len) + '&to=' + _addD(report.to, _len)); curUrl = _q('period=custom&from=' + _weekStart(_today) + '&to=' + _addD(_weekStart(_today), 6)); }
+                const _topAgent = Object.values(report.agents).reduce((best, a) => (!best || a.total > best.total) ? a : best, null);
+            %>
+            <div class="flex flex-wrap items-center gap-2 mb-5">
+                <a href="<%= prevUrl %>" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 transition">&lsaquo; Prev <%= perWord %></a>
+                <a href="<%= curUrl %>" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition">Current <%= perWord %></a>
+                <a href="<%= nextUrl %>" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 transition">Next <%= perWord %> &rsaquo;</a>
+            </div>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+                <div class="bg-slate-900 p-4 rounded-lg border border-slate-750">
+                    <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Links</div>
+                    <div class="text-2xl font-bold text-emerald-300 mt-1"><%= report.teamLinks %></div>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-lg border border-slate-750">
+                    <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Follow-ups</div>
+                    <div class="text-2xl font-bold text-amber-300 mt-1"><%= report.teamFollowups %></div>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-lg border border-slate-750">
+                    <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Grand Total</div>
+                    <div class="text-2xl font-bold text-indigo-300 mt-1"><%= report.teamTotal %></div>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-lg border border-slate-750">
+                    <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Top Performer</div>
+                    <% if (_topAgent && _topAgent.total > 0) { %>
+                        <div class="text-lg font-bold text-slate-100 mt-1 truncate"><%= _topAgent.full_name %></div>
+                        <div class="text-xs text-slate-400"><%= _topAgent.total %> total</div>
+                    <% } else { %>
+                        <div class="text-2xl font-bold text-slate-600 mt-1">&mdash;</div>
+                    <% } %>
+                </div>
             </div>
             <%- include('_report-table', {report: report}) %>
         </div>
