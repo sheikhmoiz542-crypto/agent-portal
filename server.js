@@ -528,7 +528,7 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
                         db.get(`SELECT value FROM meta WHERE key = ?`, [`recovery_code_${requestedUsername}`], (err, rcRow) => {
                         const ownPage = loggedRole === 'agent' && loggedUser === requestedUsername;
                         const recoveryCode = ownPage && rcRow && rcRow.value ? rcRow.value : null;
-                        res.render('agent', {
+                        const renderAgentPage = (eod) => res.render('agent', {
                             username: user.username,
                             fullName: user.full_name,
                             userLinksCount: userLinksCount,
@@ -548,8 +548,25 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
                             breakExceed: breakExceed,
                             shiftInfo: getShiftProgressInfo(schedFor, schedNow),
                             recentLinks: recentLinks || [],
-                            recoveryCode: recoveryCode
+                            recoveryCode: recoveryCode,
+                            eod: eod
                         });
+                        // EOD report (Jared only): previous shift's per-agent submitted / follow-ups / total.
+                        if (requestedUsername === 'jared') {
+                            const eodDate = addDaysStr(shiftDate, -1);
+                            db.all(`SELECT u.full_name,
+                                    SUM(CASE WHEN l.id IS NOT NULL AND COALESCE(l.is_followup,0)=0 THEN 1 ELSE 0 END) as links,
+                                    SUM(CASE WHEN COALESCE(l.is_followup,0)=1 THEN 1 ELSE 0 END) as followups,
+                                    COUNT(l.id) as total
+                                FROM users u LEFT JOIN links l ON l.username = u.username AND l.date = ?
+                                WHERE u.role = 'agent' GROUP BY u.username ORDER BY total DESC, u.full_name ASC`, [eodDate], (eodErr, eodRows) => {
+                                const rows = eodRows || [];
+                                const team = rows.reduce((t, r) => ({ links: t.links + (r.links || 0), followups: t.followups + (r.followups || 0), total: t.total + (r.total || 0) }), { links: 0, followups: 0, total: 0 });
+                                renderAgentPage({ date: eodDate, rows: rows, team: team });
+                            });
+                        } else {
+                            renderAgentPage(null);
+                        }
                         });
                     });
                 });
