@@ -551,22 +551,8 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
                             recoveryCode: recoveryCode,
                             eod: eod
                         });
-                        // EOD report (Jared only): previous shift's per-agent submitted / follow-ups / total.
-                        if (requestedUsername === 'jared') {
-                            const eodDate = addDaysStr(shiftDate, -1);
-                            db.all(`SELECT u.full_name,
-                                    SUM(CASE WHEN l.id IS NOT NULL AND COALESCE(l.is_followup,0)=0 THEN 1 ELSE 0 END) as links,
-                                    SUM(CASE WHEN COALESCE(l.is_followup,0)=1 THEN 1 ELSE 0 END) as followups,
-                                    COUNT(l.id) as total
-                                FROM users u LEFT JOIN links l ON l.username = u.username AND l.date = ?
-                                WHERE u.role = 'agent' GROUP BY u.username ORDER BY total DESC, u.full_name ASC`, [eodDate], (eodErr, eodRows) => {
-                                const rows = eodRows || [];
-                                const team = rows.reduce((t, r) => ({ links: t.links + (r.links || 0), followups: t.followups + (r.followups || 0), total: t.total + (r.total || 0) }), { links: 0, followups: 0, total: 0 });
-                                renderAgentPage({ date: eodDate, rows: rows, team: team });
-                            });
-                        } else {
-                            renderAgentPage(null);
-                        }
+                        // EOD report button (Jared only): opens the /eod-report page.
+                        renderAgentPage(requestedUsername === 'jared' ? true : null);
                         });
                     });
                 });
@@ -575,6 +561,27 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
     });
     }); // end getScheduleForWeek
     }); // end loadSchedFor
+});
+
+// EOD report page (Jared only): previous shift's per-agent submitted / follow-ups / total.
+app.get('/eod-report', blockAgentOnMobile, (req, res) => {
+    const { user: loggedUser, role: loggedRole } = getAuth(req);
+    if (!loggedUser || loggedRole !== 'agent' || loggedUser !== 'jared') {
+        return res.redirect('/login');
+    }
+    const eodDate = addDaysStr(getShiftDate(), -1);
+    db.all(`SELECT u.full_name,
+            SUM(CASE WHEN l.id IS NOT NULL AND COALESCE(l.is_followup,0)=0 THEN 1 ELSE 0 END) as links,
+            SUM(CASE WHEN COALESCE(l.is_followup,0)=1 THEN 1 ELSE 0 END) as followups,
+            COUNT(l.id) as total
+        FROM users u LEFT JOIN links l ON l.username = u.username AND l.date = ?
+        WHERE u.role = 'agent' GROUP BY u.username ORDER BY total DESC, u.full_name ASC`, [eodDate], (err, eodRows) => {
+        const rows = eodRows || [];
+        const team = rows.reduce((t, r) => ({ links: t.links + (r.links || 0), followups: t.followups + (r.followups || 0), total: t.total + (r.total || 0) }), { links: 0, followups: 0, total: 0 });
+        db.get(`SELECT full_name FROM users WHERE username = ?`, [loggedUser], (uErr, uRow) => {
+            res.render('eod-report', { username: loggedUser, fullName: uRow ? uRow.full_name : loggedUser, date: eodDate, rows: rows, team: team });
+        });
+    });
 });
 
 app.post('/submit-link/:username', blockAgentOnMobile, (req, res) => {
