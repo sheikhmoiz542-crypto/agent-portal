@@ -551,8 +551,8 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
                             recoveryCode: recoveryCode,
                             eod: eod
                         });
-                        // EOD report button (every agent, on their own page): opens the /eod-report page.
-                        renderAgentPage(ownPage ? true : null);
+                        // EOD report button (Jared only): opens the /eod-report page.
+                        renderAgentPage(requestedUsername === 'jared' ? true : null);
                         });
                     });
                 });
@@ -563,10 +563,10 @@ app.get('/agent/:username', blockAgentOnMobile, (req, res) => {
     }); // end loadSchedFor
 });
 
-// EOD report page (any agent): previous shift's per-agent submitted / follow-ups / total.
+// EOD report page (Jared only): previous shift's per-agent submitted / follow-ups / total.
 app.get('/eod-report', blockAgentOnMobile, (req, res) => {
     const { user: loggedUser, role: loggedRole } = getAuth(req);
-    if (!loggedUser || loggedRole !== 'agent') {
+    if (!loggedUser || loggedRole !== 'agent' || loggedUser !== 'jared') {
         return res.redirect('/login');
     }
     const eodDate = addDaysStr(getShiftDate(), -1);
