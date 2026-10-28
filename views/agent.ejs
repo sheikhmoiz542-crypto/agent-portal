@@ -238,7 +238,9 @@
                             <div class="flex justify-between items-center bg-slate-900 p-3 rounded border border-slate-750">
                                 <span class="text-sm font-medium"><%= index + 1 %>. <%= entry.full_name %></span>
                                 <div class="flex gap-2 shrink-0">
-                                    <span class="bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded text-xs font-bold"><%= (Number(entry.count) || 0) + (Number(entry.followups) || 0) %> links</span>
+                                    <span class="bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded text-xs font-bold"><%= entry.count %> links</span>
+                                    <span class="bg-amber-500/30 text-amber-300 px-2.5 py-1 rounded text-xs font-bold"><%= entry.followups %> follow-ups</span>
+                                    <span class="bg-emerald-600/30 text-emerald-300 px-2.5 py-1 rounded text-xs font-bold"><%= (Number(entry.count) || 0) + (Number(entry.followups) || 0) %> total</span>
                                 </div>
                             </div>
                         <% }) %>
@@ -411,8 +413,14 @@
                 boxes.className = 'flex gap-2 shrink-0';
                 var b1 = document.createElement('span');
                 b1.className = 'bg-indigo-600/30 text-indigo-300 px-2.5 py-1 rounded text-xs font-bold';
-                b1.textContent = ((Number(links) || 0) + (Number(followups) || 0)) + ' links';
-                boxes.appendChild(b1);
+                b1.textContent = links + ' links';
+                var b2 = document.createElement('span');
+                b2.className = 'bg-amber-500/30 text-amber-300 px-2.5 py-1 rounded text-xs font-bold';
+                b2.textContent = followups + ' follow-ups';
+                var b3 = document.createElement('span');
+                b3.className = 'bg-emerald-600/30 text-emerald-300 px-2.5 py-1 rounded text-xs font-bold';
+                b3.textContent = ((Number(links) || 0) + (Number(followups) || 0)) + ' total';
+                boxes.appendChild(b1); boxes.appendChild(b2); boxes.appendChild(b3);
                 div.appendChild(nameSpan); div.appendChild(boxes);
                 return div;
             }
