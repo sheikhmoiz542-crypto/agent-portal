@@ -599,13 +599,32 @@ app.post('/submit-link/:username', blockAgentOnMobile, (req, res) => {
         if (!user) return res.redirect('/login');
 
         // Hard duplicate block: this agent already logged this link in their own shift.
+        // Unchanged — the red "Duplicate link" error stays for the agent's own link.
         isOwnShiftDuplicate(requestedUsername, link, (dup) => {
             if (dup) {
                 return res.redirect(`/agent/${requestedUsername}?error=` + encodeURIComponent('Duplicate link \u2014 already submitted.'));
             }
-            db.run(`INSERT INTO links (username, full_name, link, date, submitted_at, is_followup) VALUES (?, ?, ?, ?, ?, 0)`,
-                [user.username, user.full_name, link, shiftDate, Date.now()], (err) => {
-                res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Link successfully logged!'));
+            // Cross-agent rule: another agent already logged this link this shift,
+            // so this submission becomes a follow-up for this agent instead of a
+            // fresh submit. The 6-hour follow-up cooldown applies, exactly as if
+            // the agent had pressed the Follow Up button.
+            isOtherAgentShiftDuplicate(requestedUsername, link, shiftDate, (otherDup) => {
+                if (!otherDup) {
+                    db.run(`INSERT INTO links (username, full_name, link, date, submitted_at, is_followup) VALUES (?, ?, ?, ?, ?, 0)`,
+                        [user.username, user.full_name, link, shiftDate, Date.now()], (err) => {
+                        res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Link successfully logged!'));
+                    });
+                    return;
+                }
+                checkFollowupCooldown(requestedUsername, link, (coolErr) => {
+                    if (coolErr) {
+                        return res.redirect(`/agent/${requestedUsername}?error=` + encodeURIComponent(coolErr) + `&followup=1`);
+                    }
+                    db.run(`INSERT INTO links (username, full_name, link, date, submitted_at, is_followup) VALUES (?, ?, ?, ?, ?, 1)`,
+                        [user.username, user.full_name, link, shiftDate, Date.now()], (err) => {
+                        res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Follow-up logged!') + `&followup=1`);
+                    });
+                });
             });
         });
     });
@@ -665,6 +684,16 @@ function isOwnShiftDuplicate(username, link, cb) {
                 [link, username, shiftStartMs, getShiftDate()], (err, row) => cb(!!row));
         });
     });
+}
+
+// Cross-agent duplicate check for the current shift: has ANY OTHER agent
+// already logged this exact link today? (Submit or follow-up — any row means
+// the link is already in this shift's work.) Own rows are excluded; those
+// are handled by isOwnShiftDuplicate above.
+function isOtherAgentShiftDuplicate(username, link, shiftDate, cb) {
+    if (!link) return cb(false);
+    db.get(`SELECT id FROM links WHERE link = ? AND username != ? AND date = ?`,
+        [link, username, shiftDate], (err, row) => cb(!!row));
 }
 
 // 6-hour per-agent follow-up cooldown: the same agent cannot follow up the
