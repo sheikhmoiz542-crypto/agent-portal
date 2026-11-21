@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <script>(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('sd-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
+    <link rel="stylesheet" href="/theme.css?v=1">
+    <script src="/theme.js?v=1" defer></script>
     <title>Team Reports</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -16,6 +19,7 @@
         </div>
         <div class="flex gap-2 sm:gap-3 flex-wrap">
             <a href="/manager" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition">Back to Dashboard</a>
+            <button type="button" data-theme-toggle class="theme-toggle bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition"></button>
             <a href="/logout" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded text-sm font-semibold transition">Logout</a>
         </div>
     </nav>

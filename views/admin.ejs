@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <script>(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('sd-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
+    <link rel="stylesheet" href="/theme.css?v=1">
+    <script src="/theme.js?v=1" defer></script>
     <title>Manager Command Center - E3 Group</title>
     <style>
         body { background-color: #0d0f18; color: #e2e8f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 25px; }
@@ -35,6 +38,32 @@
 
         .badge-on { background: #065f46; color: #34d399; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
         .badge-off { background: #334155; color: #94a3b8; padding: 3px 8px; border-radius: 4px; font-size: 11px; }
+        .theme-btn { display:inline-flex; align-items:center; gap:6px; background:#1a1a1a; color:#e5e5e5; border:1px solid #262626; padding:8px 14px; border-radius:6px; font-size:13px; font-weight:bold; cursor:pointer; font-family:inherit; }
+        .theme-btn svg { width:15px; height:15px; }
+        html[data-theme="dark"] body { background-color:#000000; }
+        html[data-theme="dark"] .header, html[data-theme="dark"] .card, html[data-theme="dark"] .container { background:#0d0d0d; border-color:#262626; }
+        html[data-theme="dark"] th { background:#141414; }
+        html[data-theme="dark"] td { border-color:#1a1a1a; }
+        html[data-theme="dark"] tr:hover { background:#111111; }
+        html[data-theme="dark"] input.sched-input { background:#000000; border-color:#262626; }
+        html[data-theme="dark"] li { background:#141414; border-color:#262626; }
+        html[data-theme="dark"] a.back { background:#141414; border-color:#262626; }
+        html[data-theme="light"] body { background-color:#f1f5f9; color:#0f172a; }
+        html[data-theme="light"] .header, html[data-theme="light"] .card, html[data-theme="light"] .container { background:#ffffff; border-color:#e2e8f0; box-shadow:0 4px 20px rgba(15,23,42,0.06); }
+        html[data-theme="light"] .header h1, html[data-theme="light"] h3 { color:#b45309; }
+        html[data-theme="light"] h3 { border-color:#e2e8f0; }
+        html[data-theme="light"] .header span { color:#64748b; }
+        html[data-theme="light"] th { background:#f1f5f9; color:#b45309; border-color:#e2e8f0; }
+        html[data-theme="light"] td { border-color:#e2e8f0; color:#334155; }
+        html[data-theme="light"] tr:hover { background:#f8fafc; }
+        html[data-theme="light"] input.sched-input { background:#ffffff; border-color:#cbd5e1; color:#0f172a; }
+        html[data-theme="light"] .stat-box { color:#047857; }
+        html[data-theme="light"] li { background:#f8fafc; border-color:#e2e8f0; }
+        html[data-theme="light"] li a { color:#0369a1; }
+        html[data-theme="light"] span.time { color:#64748b; }
+        html[data-theme="light"] a.back { background:#f1f5f9; border-color:#e2e8f0; color:#0f172a; }
+        html[data-theme="light"] .badge-off { background:#e2e8f0; color:#64748b; }
+        html[data-theme="light"] .theme-btn { background:#ffffff; color:#0f172a; border-color:#e2e8f0; }
     </style>
 </head>
 <body>
@@ -43,7 +72,10 @@
             <h1>MANAGER COMMAND CENTER</h1>
             <span>REAL-TIME AGENT TRACKING & SCHEDULE MANAGEMENT</span>
         </div>
+        <div style="display:flex; gap:10px; align-items:center;">
+        <button type="button" data-theme-toggle class="theme-btn"></button>
         <a class="logout" href="/logout">SIGNOUT</a>
+        </div>
     </div>
 
     <% if (success) { %>

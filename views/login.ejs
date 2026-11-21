@@ -3,11 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <script>(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('sd-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
+    <link rel="stylesheet" href="/theme.css?v=1">
+    <script src="/theme.js?v=1" defer></script>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Login - E3 Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-white flex items-center justify-center h-screen">
+    <button type="button" data-theme-toggle class="theme-toggle fixed top-4 right-4 z-50 bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded text-sm font-semibold transition"></button>
     <div class="bg-slate-800 p-8 rounded-xl shadow-xl w-96 border border-slate-700">
         <h2 class="text-2xl font-bold mb-6 text-center text-indigo-400">E3 Portal Login</h2>
         <% if (error) { %>
