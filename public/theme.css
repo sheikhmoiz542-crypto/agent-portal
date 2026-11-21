@@ -61,3 +61,10 @@ html[data-theme="light"] :is(.bg-indigo-600,.bg-indigo-500,.bg-amber-500,.bg-amb
 /* ---------- theme toggle button ---------- */
 .theme-toggle { display:inline-flex; align-items:center; gap:6px; }
 .theme-toggle svg { width:15px; height:15px; flex:none; }
+
+/* ---------- kebab (⋮) menu ---------- */
+.kebab-btn { position:relative; overflow:hidden; }
+.kebab-btn svg { width:18px; height:18px; flex:none; }
+.kebab-btn::after { content:""; position:absolute; top:0; left:-70%; width:45%; height:100%; background:linear-gradient(105deg, rgba(255,255,255,0) 0%, rgba(196,181,253,.55) 50%, rgba(255,255,255,0) 100%); transform:skewX(-20deg); transition:left .55s ease; pointer-events:none; }
+.kebab-btn:hover::after { left:135%; }
+.kebab-btn:hover { border-color:#8b5cf6 !important; box-shadow:0 0 0 1px rgba(139,92,246,.45), 0 0 18px rgba(139,92,246,.55); color:#c4b5fd !important; }

@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <script>(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('sd-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
-    <link rel="stylesheet" href="/theme.css?v=1">
-    <script src="/theme.js?v=1" defer></script>
+    <link rel="stylesheet" href="/theme.css?v=2">
+    <script src="/theme.js?v=2" defer></script>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Manager Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -25,15 +25,19 @@
             <h1 class="text-lg sm:text-xl font-bold text-indigo-400">Manager Portal</h1>
             <span class="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded border <%= isOwner ? 'bg-amber-600/20 text-amber-300 border-amber-600/40' : 'bg-indigo-600/20 text-indigo-300 border-indigo-600/40' %>"><%= isOwner ? 'Owner' : 'Manager' %></span>
         </div>
-        <div class="flex gap-2 sm:gap-3 flex-wrap">
-            <a href="/manager/preview-schedule" target="_blank" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-sm font-semibold transition">Preview Team Schedule</a>
-            <a href="/manager/reports" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded text-sm font-semibold transition">Reports</a>
-            <button onclick="openFilterModal()" class="relative bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition">Filter Stats<% if (selectedFrom || selectedTo || selectedAgent) { %><span class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-400 border-2 border-slate-800" title="A filter is active"></span><% } %></button>
-            <button onclick="openAddAgentModal()" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-sm font-semibold transition">+ Add Agent</button>
-            <% if (isOwner) { %><button onclick="openAddManagerModal()" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-sm font-semibold transition">+ Add Manager</button><% } %>
-            <button type="button" data-theme-toggle class="theme-toggle bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition"></button>
-            <button onclick="openPwModal()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition">Change Password</button>
-            <a href="/logout" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded text-sm font-semibold transition">Logout</a>
+        <div class="relative">
+            <button type="button" data-kebab aria-label="Menu" title="Menu" class="kebab-btn bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded text-sm font-semibold transition"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></button>
+            <div data-kebab-menu class="hidden absolute right-0 mt-2 w-56 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-1 z-50">
+                <a href="/manager/preview-schedule" target="_blank" class="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition">Preview Team Schedule</a>
+                <a href="/manager/reports" class="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition">Reports</a>
+                <button onclick="openFilterModal()" class="relative flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition">Filter Stats<% if (selectedFrom || selectedTo || selectedAgent) { %><span class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-400 border-2 border-slate-800" title="A filter is active"></span><% } %></button>
+                <button onclick="openAddAgentModal()" class="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition">+ Add Agent</button>
+                <% if (isOwner) { %><button onclick="openAddManagerModal()" class="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition">+ Add Manager</button><% } %>
+                <button type="button" data-theme-toggle class="theme-toggle flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition"></button>
+                <button type="button" onclick="openPwModal()" class="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition">Change Password</button>
+                <div class="border-t border-slate-700 my-1"></div>
+                <a href="/logout" class="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm font-semibold text-red-400 hover:bg-slate-700 transition">Logout</a>
+            </div>
         </div>
     </nav>
 

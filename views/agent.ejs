@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <script>(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('sd-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
-    <link rel="stylesheet" href="/theme.css?v=1">
-    <script src="/theme.js?v=1" defer></script>
+    <link rel="stylesheet" href="/theme.css?v=2">
+    <script src="/theme.js?v=2" defer></script>
     <title>Agent Portal - <%= fullName %></title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -15,13 +15,20 @@
             <h1 class="text-xl font-bold text-indigo-400">Agent Portal</h1>
             <p class="text-xs text-slate-500 mt-0.5">Welcome, <%= fullName %></p>
         </div>
-        <div class="flex gap-2">
-            <% if (typeof eod !== 'undefined' && eod) { %>
-            <a href="/eod-report" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded text-sm font-semibold transition">EOD Report</a>
-            <% } %>
-            <button type="button" data-theme-toggle class="theme-toggle bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition"></button>
-            <button onclick="openPwModal()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition">Change Password</button>
-            <a href="/logout" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded text-sm font-semibold transition">Logout</a>
+        <div class="relative">
+            <button type="button" data-kebab aria-label="Menu" title="Menu" class="kebab-btn bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded text-sm font-semibold transition"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></button>
+            <div data-kebab-menu class="hidden absolute right-0 mt-2 w-56 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-1 z-50">
+                <% if (typeof eod !== 'undefined' && eod) { %>
+                <a href="/eod-report" class="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition">EOD Report</a>
+                <% } %>
+                <button type="button" data-theme-toggle class="theme-toggle flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition"></button>
+                <button type="button" onclick="openPwModal()" class="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition">Change Password</button>
+                <form action="/generate-recovery-code" method="POST"<% if (recoveryCode) { %> onsubmit="return confirm('Generate a new recovery code? The old one will stop working.');"<% } %>>
+                    <button type="submit" class="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition">Recovery Code</button>
+                </form>
+                <div class="border-t border-slate-700 my-1"></div>
+                <a href="/logout" class="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm font-semibold text-red-400 hover:bg-slate-700 transition">Logout</a>
+            </div>
         </div>
     </nav>
 
@@ -279,23 +286,19 @@
                 </div>
             </div>
 
-            <!-- Account Recovery -->
+            <!-- Account Recovery (shown only once a code exists; generate it from the ⋮ menu) -->
+            <% if (recoveryCode) { %>
             <div class="bg-slate-800 p-6 rounded-xl border border-amber-600/30 shadow-lg">
                 <h2 class="text-lg font-semibold mb-1 text-amber-300">Account Recovery</h2>
                 <p class="text-xs text-slate-500 mb-4">Forgot your password? Use this code on the "Forgot password?" page. Keep it safe.</p>
-                <% if (recoveryCode) { %>
-                    <div class="flex flex-wrap items-center gap-3">
-                        <code class="bg-slate-900 border border-amber-600/40 text-amber-200 font-mono font-bold tracking-widest px-3 py-2 rounded select-all"><%= recoveryCode %></code>
-                        <form action="/generate-recovery-code" method="POST" onsubmit="return confirm('Generate a new recovery code? The old one will stop working.');">
-                            <button type="submit" class="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded text-xs font-semibold transition">New Code</button>
-                        </form>
-                    </div>
-                <% } else { %>
-                    <form action="/generate-recovery-code" method="POST">
-                        <button type="submit" class="bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded text-sm font-semibold transition">Generate Recovery Code</button>
+                <div class="flex flex-wrap items-center gap-3">
+                    <code class="bg-slate-900 border border-amber-600/40 text-amber-200 font-mono font-bold tracking-widest px-3 py-2 rounded select-all"><%= recoveryCode %></code>
+                    <form action="/generate-recovery-code" method="POST" onsubmit="return confirm('Generate a new recovery code? The old one will stop working.');">
+                        <button type="submit" class="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded text-xs font-semibold transition">New Code</button>
                     </form>
-                <% } %>
+                </div>
             </div>
+            <% } %>
 
         </div>
     </div>

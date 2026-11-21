@@ -20,3 +20,17 @@
   });
   render();
 })();
+
+  /* kebab menu: open on ⋮ click, close on any other click or Escape */
+  document.addEventListener('click', function (e) {
+    var menu = document.querySelector('[data-kebab-menu]');
+    if (!menu) return;
+    var btn = e.target && e.target.closest ? e.target.closest('[data-kebab]') : null;
+    if (btn) { menu.classList.toggle('hidden'); return; }
+    menu.classList.add('hidden');
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    var menu = document.querySelector('[data-kebab-menu]');
+    if (menu) menu.classList.add('hidden');
+  });
