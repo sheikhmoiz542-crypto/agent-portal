@@ -185,13 +185,14 @@ function requireOwner(req, res, next) {
 }
 
 // Agents may only use the portal from a desktop/laptop ("system").
-// Managers and owners are exempt from this rule.
+// Managers and owners are exempt from this rule, and so is Jared —
+// he is allowed on mobile too (owner's order, 2026-11-20).
 function isMobileUA(ua) {
     return /mobi|android|iphone|ipod|ipad|tablet|blackberry|iemobile|opera mini|windows phone/i.test(ua || '');
 }
 function blockAgentOnMobile(req, res, next) {
-    const { role } = getAuth(req);
-    if (role === 'agent' && isMobileUA(req.get('User-Agent'))) {
+    const { user, role } = getAuth(req);
+    if (role === 'agent' && user !== 'jared' && isMobileUA(req.get('User-Agent'))) {
         return res.status(403).render('desktop-only');
     }
     next();
@@ -436,7 +437,7 @@ app.post('/login', (req, res) => {
             return res.render('login', { error: 'Invalid username or password' });
         }
 
-        if (user.role === 'agent' && isMobileUA(req.get('User-Agent'))) {
+        if (user.role === 'agent' && user.username !== 'jared' && isMobileUA(req.get('User-Agent'))) {
             return res.render('login', { error: "This page isn't supported on mobile devices." });
         }
 
