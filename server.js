@@ -605,26 +605,17 @@ app.post('/submit-link/:username', blockAgentOnMobile, (req, res) => {
             if (dup) {
                 return res.redirect(`/agent/${requestedUsername}?error=` + encodeURIComponent('Duplicate link \u2014 already submitted.'));
             }
-            // Cross-agent rule: another agent already logged this link this shift,
-            // so this submission becomes a follow-up for this agent instead of a
-            // fresh submit. The 6-hour follow-up cooldown applies, exactly as if
-            // the agent had pressed the Follow Up button.
+            // Cross-agent rule (owner's order, 2026-11-24): if ANY OTHER agent
+            // already logged this link this shift, Submit is an error too — the
+            // link no longer auto-lands as a follow-up. To count it as a
+            // follow-up, the agent must press the Follow Up button instead.
             isOtherAgentShiftDuplicate(requestedUsername, link, shiftDate, (otherDup) => {
-                if (!otherDup) {
-                    db.run(`INSERT INTO links (username, full_name, link, date, submitted_at, is_followup) VALUES (?, ?, ?, ?, ?, 0)`,
-                        [user.username, user.full_name, link, shiftDate, Date.now()], (err) => {
-                        res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Link successfully logged!'));
-                    });
-                    return;
+                if (otherDup) {
+                    return res.redirect(`/agent/${requestedUsername}?error=` + encodeURIComponent('Duplicate link — already submitted.'));
                 }
-                checkFollowupCooldown(requestedUsername, link, (coolErr) => {
-                    if (coolErr) {
-                        return res.redirect(`/agent/${requestedUsername}?error=` + encodeURIComponent(coolErr) + `&followup=1`);
-                    }
-                    db.run(`INSERT INTO links (username, full_name, link, date, submitted_at, is_followup) VALUES (?, ?, ?, ?, ?, 1)`,
-                        [user.username, user.full_name, link, shiftDate, Date.now()], (err) => {
-                        res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Follow-up logged!') + `&followup=1`);
-                    });
+                db.run(`INSERT INTO links (username, full_name, link, date, submitted_at, is_followup) VALUES (?, ?, ?, ?, ?, 0)`,
+                    [user.username, user.full_name, link, shiftDate, Date.now()], (err) => {
+                    res.redirect(`/agent/${requestedUsername}?success=` + encodeURIComponent('Link successfully logged!'));
                 });
             });
         });
